@@ -1,6 +1,7 @@
 const std = @import("std");
 const curse = @import("ncurses.zig");
 usingnamespace @import("Image.zig");
+usingnamespace @import("Camera.zig");
 
 pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -24,7 +25,7 @@ pub fn main() anyerror!void {
             }
 
             imgbuffer = try Image.png(arg, allocator);
-            std.log.info("png size {}x{}", .{ imgbuffer.?.width, imgbuffer.?.height });
+            std.log.info("png size {}x{}, d{}", .{ imgbuffer.?.width, imgbuffer.?.height, imgbuffer.?.stride });
             imgfilename = try allocator.dupe(u8, arg);
         }
     }
@@ -33,7 +34,36 @@ pub fn main() anyerror!void {
         var ctx = curse.Context.init();
         defer ctx.deinit();
 
-        img.deinit();
+        var camera = Camera.init(&ctx, img);
+
+        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
+        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
+        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
+        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
+        while (true) {
+            ctx.clear();
+            camera.draw_all();
+            ctx.swap();
+
+            switch (ctx.get_char() orelse ' ') {
+                'q' => {
+                    break;
+                },
+                'w' => {
+                    camera.offset.y -= 1;
+                },
+                's' => {
+                    camera.offset.y += 1;
+                },
+                'a' => {
+                    camera.offset.x -= 1;
+                },
+                'd' => {
+                    camera.offset.x += 1;
+                },
+                else => {},
+            }
+        }
     } else {
         std.log.err("No file specified!", .{});
     }

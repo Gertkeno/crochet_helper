@@ -11,10 +11,11 @@ pub const BitmapError = error{
 };
 
 pub const PNGError = error{
-    Generic,
+    Unkown,
     CreationError,
     NotFound,
     NotPNG,
+    UnsupportedColorType,
 };
 
 fn read_row_callback(
@@ -23,12 +24,13 @@ fn read_row_callback(
     pass: c_int,
 ) callconv(.C) void {
     // print?
-    std.log.info("png read {}pass {}row", .{ pass, row });
+    //std.log.info("png read {}pass {}row", .{ pass, row });
 }
 
 pub const Image = struct {
     width: u32,
     height: u32,
+    stride: usize,
     pixels: []const u8,
     allocator: *std.mem.Allocator,
 
@@ -48,9 +50,18 @@ pub const Image = struct {
         var width: c_uint = 0;
         var height: c_uint = 0;
         var bitDepth: c_int = 0;
-        if (c.png_get_IHDR(png_ptr, info_ptr, &width, &height, &bitDepth, null, null, null, null) != 1) {
-            return PNGError.Generic;
+        var colorType: c_int = 0;
+        if (c.png_get_IHDR(png_ptr, info_ptr, &width, &height, &bitDepth, &colorType, null, null, null) != 1) {
+            return PNGError.Unkown;
         }
+
+        const stride: usize = switch (colorType) {
+            c.PNG_COLOR_TYPE_RGB => 3,
+            c.PNG_COLOR_TYPE_RGB_ALPHA => 4,
+            c.PNG_COLOR_TYPE_GRAY => 1,
+            c.PNG_COLOR_TYPE_GRAY_ALPHA => 2,
+            else => return PNGError.UnsupportedColorType,
+        };
 
         if (bitDepth == 16) {
             c.png_set_strip_16(png_ptr);
@@ -76,6 +87,7 @@ pub const Image = struct {
             .width = width,
             .height = height,
             .pixels = imgData,
+            .stride = stride,
             .allocator = allocator,
         };
     }
@@ -109,8 +121,8 @@ pub const Image = struct {
             return BitmapError.UnsupportedCompression;
         }
         const imgsize = try reader.readIntLittle(i32);
-        const ppmh = try reader.readIntLittle(i32);
         const ppmw = try reader.readIntLittle(i32);
+        const ppmh = try reader.readIntLittle(i32);
         const colorsInPalette = try reader.readIntLittle(i32);
         const colorSignificant = try reader.readIntLittle(i32);
 
@@ -121,6 +133,7 @@ pub const Image = struct {
             .width = 0,
             .height = 0,
             .pixels = undefined,
+            .stride = @intCast(usize, @divExact(bitcount, 8)),
             .allocator = allocator,
         };
     }

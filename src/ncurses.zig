@@ -4,17 +4,10 @@ const c = @cImport({
 });
 
 pub const Color = struct {
-    underlying: [3]u8,
+    underlying: []const u8,
 
     pub fn from_slice(color: []const u8) Color {
-        return Color{ .underlying = [3]u8{ color[0], color[1], color[2] } };
-    }
-
-    pub fn from_mask(color: u24) Color {
-        const r: u8 = @intCast(u8, (color & 0xFF0000) >> 16);
-        const g: u8 = @intCast(u8, (color & 0x00FF00) >> 8);
-        const b: u8 = @intCast(u8, (color & 0x0000FF) >> 0);
-        return Color{ .underlying = [3]u8{ r, g, b } };
+        return Color{ .underlying = color[0..3] };
     }
 
     pub fn magnitude(self: Color) u8 {
@@ -40,19 +33,23 @@ pub const Color = struct {
             }
         }
 
+        if (eqls == 0b111 and high < 0x7F) {
+            return 0;
+        }
+
         return eqls;
     }
 
     pub fn inverse_magnitude(self: Color) u8 {
         return switch (self.high_bits()) {
-            0b001 => (self.underlying[1] + self.underlying[2]) / 2,
-            0b010 => (self.underlying[0] + self.underlying[2]) / 2,
-            0b100 => (self.underlying[0] + self.underlying[1]) / 2,
+            0b001 => (self.underlying[1] / 2 + self.underlying[2] / 2),
+            0b010 => (self.underlying[0] / 2 + self.underlying[2] / 2),
+            0b100 => (self.underlying[0] / 2 + self.underlying[1] / 2),
             0b011 => self.underlying[2],
             0b101 => self.underlying[1],
             0b110 => self.underlying[0],
-            0b111 => self.magnitude(),
-            0b000 => 0,
+            0b111 => 255 - self.magnitude(),
+            0b000 => self.magnitude(),
         };
     }
 
@@ -65,12 +62,12 @@ pub const Color = struct {
             0b101 => .Magenta,
             0b011 => .Yellow,
             0b111 => .White,
-            else => unreachable,
+            0b000 => .Black,
         };
     }
 
-    pub const Name = enum {
-        Red,
+    pub const Name = enum(u8) {
+        Red = 1,
         Green,
         Blue,
         Yellow,
@@ -81,15 +78,8 @@ pub const Color = struct {
     };
 };
 
-test "color from mask" {
-    const tc = Color.from_mask(0xFF1A07);
-    std.testing.expectEqual(@as(u8, 0xFF), tc.underlying[0]);
-    std.testing.expectEqual(@as(u8, 0x1A), tc.underlying[1]);
-    std.testing.expectEqual(@as(u8, 0x07), tc.underlying[2]);
-}
-
 test "highest color" {
-    const r = Color.from_mask(0xFF0000);
+    const r = Color.from_slice(&[_]u8{ 0xFF, 0, 0 });
     std.testing.expectEqual(Color.Name.Red, r.closest_name());
     std.testing.expectEqual(@as(u8, 0), r.inverse_magnitude());
 }
@@ -97,6 +87,10 @@ test "highest color" {
 pub const Vec = struct {
     x: i32,
     y: i32,
+
+    pub fn zero() Vec {
+        return Vec{ .x = 0, .y = 0 };
+    }
 };
 
 pub const Context = struct {
@@ -105,9 +99,9 @@ pub const Context = struct {
 
     pub fn init() Context {
         const window = c.initscr();
-        _ = c.start_color();
         _ = c.cbreak();
         _ = c.noecho();
+        _ = c.start_color();
 
         _ = c.init_pair(@enumToInt(Color.Name.Red), c.COLOR_WHITE, c.COLOR_RED);
         _ = c.init_pair(@enumToInt(Color.Name.Green), c.COLOR_WHITE, c.COLOR_GREEN);
@@ -126,15 +120,48 @@ pub const Context = struct {
     }
 
     pub fn fill(self: Context, color: Color, mark: bool) void {
-        const cint = @enumToInt(color.closest_name());
-        const mag = color.inverse_magnitude();
+        const cint = c.COLOR_PAIR(@enumToInt(color.closest_name()));
+
+        // drawing
+        const char: u8 = switch (color.inverse_magnitude()) {
+            0x00...0x10 => ' ',
+            0x11...0x30 => ',',
+            0x31...0x50 => '_',
+            0x51...0x70 => ':',
+            0x71...0x90 => 'e',
+            0x91...0xB0 => '6',
+            0xB1...0xD0 => 'Q',
+            0xD1...0xFF => '@',
+        };
 
         _ = c.wattron(self.window, cint);
-        _ = c.waddch(self.window, if (mark) 'X' else mag);
-        _ = c.wattroff(self.window, cint);
+        _ = c.waddch(self.window, if (mark) 'X' else char);
+        //_ = c.wattroff(self.window, cint);
     }
 
-    pub fn move(self: Color, pos: Vec) void {
-        _ = c.wmove(self.window, pos.x, pos.y);
+    pub fn get_char(self: Context) ?u8 {
+        const ch = c.wgetch(self.window);
+
+        if (ch == c.ERR) {
+            return null;
+        }
+
+        if (ch < 32 or ch > 127) {
+            return null;
+        }
+
+        return @intCast(u8, ch);
+    }
+
+    pub fn move(self: Context, pos: Vec) void {
+        _ = c.wmove(self.window, pos.y, pos.x);
+    }
+
+    pub fn swap(self: Context) void {
+        _ = c.wrefresh(self.window);
+    }
+
+    pub fn clear(self: Context) void {
+        _ = c.werase(self.window);
     }
 };
