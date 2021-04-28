@@ -3,6 +3,16 @@ const c = @cImport({
     @cInclude("ncurses.h");
 });
 
+fn eql_within(lhs: i32, rhs: i32, err: i32) bool {
+    if (lhs < rhs - err) {
+        return false;
+    } else if (lhs > rhs + err) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
 pub const Color = struct {
     underlying: []const u8,
 
@@ -28,7 +38,7 @@ pub const Color = struct {
         }
 
         for (self.underlying) |byte, n| {
-            if (high == byte) {
+            if (eql_within(byte, high, 8)) {
                 eqls |= @as(u3, 1) << @intCast(u2, n);
             }
         }
@@ -125,11 +135,11 @@ pub const Context = struct {
         // drawing
         const char: u8 = switch (color.inverse_magnitude()) {
             0x00...0x10 => ' ',
-            0x11...0x30 => ',',
+            0x11...0x30 => '.',
             0x31...0x50 => '_',
             0x51...0x70 => ':',
-            0x71...0x90 => 'e',
-            0x91...0xB0 => '6',
+            0x71...0x90 => 'c',
+            0x91...0xB0 => '7',
             0xB1...0xD0 => 'Q',
             0xD1...0xFF => '@',
         };

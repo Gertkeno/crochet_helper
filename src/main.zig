@@ -2,6 +2,7 @@ const std = @import("std");
 const curse = @import("ncurses.zig");
 usingnamespace @import("Image.zig");
 usingnamespace @import("Camera.zig");
+usingnamespace @import("Save.zig");
 
 pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -9,7 +10,7 @@ pub fn main() anyerror!void {
     const allocator = &arena.allocator;
 
     var imgbuffer: ?Image = null;
-    var imgfilename: ?[]const u8 = null;
+    var imgSave: ?Save = null;
 
     var args = std.process.args();
     _ = args.skip();
@@ -20,13 +21,15 @@ pub fn main() anyerror!void {
             return;
         } else {
             if (imgbuffer != null) {
-                std.log.warn("a file has already been read: \"{}\" ignoring \"{}\"", .{ imgfilename.?, arg });
+                std.log.warn("a file has already been read, ignoring \"{}\"", .{arg});
                 continue;
             }
 
             imgbuffer = try Image.png(arg, allocator);
             std.log.info("png size {}x{}, d{}", .{ imgbuffer.?.width, imgbuffer.?.height, imgbuffer.?.stride });
-            imgfilename = try allocator.dupe(u8, arg);
+            const a = [_][]const u8{ arg, ".save" };
+            const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
+            imgSave = try Save.open(imgSaveFilename);
         }
     }
 
@@ -35,11 +38,10 @@ pub fn main() anyerror!void {
         defer ctx.deinit();
 
         var camera = Camera.init(&ctx, img);
+        if (imgSave) |save| {
+            camera.progress = save.savedProgress;
+        }
 
-        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
-        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
-        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
-        //ctx.fill(curse.Color.from_slice(&[_]u8{ 0xFF, 0x7F, 0x00 }), false);
         while (true) {
             ctx.clear();
             camera.draw_all();
@@ -61,8 +63,29 @@ pub fn main() anyerror!void {
                 'd' => {
                     camera.offset.x += 1;
                 },
+                // progress shifts
+                'z' => {
+                    camera.add_progress(-10);
+                },
+                'x' => {
+                    camera.add_progress(-1);
+                },
+                'c' => {
+                    camera.add_progress(1);
+                },
+                'v' => {
+                    camera.add_progress(10);
+                },
+                'b' => {
+                    camera.add_progress(25);
+                },
                 else => {},
             }
+        }
+
+        // save and close
+        if (imgSave) |save| {
+            try save.close(camera.progress);
         }
     } else {
         std.log.err("No file specified!", .{});

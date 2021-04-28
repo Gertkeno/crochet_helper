@@ -7,12 +7,16 @@ pub const Camera = struct {
     ctx: *const curses.Context,
     img: Image,
 
+    progress: usize,
+
     pub fn init(ctx: *const curses.Context, image: Image) Camera {
         return Camera{
             .offset = curses.Vec{
                 .x = 0,
                 .y = 0,
             },
+            .progress = 0,
+
             .ctx = ctx,
             .img = image,
         };
@@ -38,16 +42,37 @@ pub const Camera = struct {
         }) {
             const ox = x + self.offset.x;
             const oy = y + self.offset.y;
-            if (ox < 0 or ox > self.img.width) {
+            if (ox < 0 or ox >= self.img.width) {
                 continue;
-            } else if (oy < 0 or oy > self.img.height) {
+            } else if (oy < 0 or oy >= self.img.height) {
                 continue;
             }
 
             const pos = ox + oy * iw;
             const i = @intCast(usize, pos) * s;
             const pixel = curses.Color.from_slice(self.img.pixels[i .. i + s]);
-            self.ctx.fill(pixel, false);
+            self.ctx.fill(pixel, self.progress > pos);
         }
+    }
+
+    pub fn add_progress(self: *Camera, comptime amount: comptime_int) void {
+        if (amount < 0) {
+            if (self.progress > -amount) {
+                // wtf zig...
+                self.progress -= -amount;
+            } else {
+                self.progress = 0;
+            }
+        } else {
+            if (self.progress < self.max() - amount) {
+                self.progress += amount;
+            } else {
+                self.progress = self.max();
+            }
+        }
+    }
+
+    fn max(self: Camera) usize {
+        return self.img.width * self.img.height;
     }
 };
