@@ -16,7 +16,7 @@ pub const Save = struct {
         }
     }
 
-    pub fn open(str: []const u8) !?Save {
+    pub fn open(str: []const u8) !Save {
         if (try open_maybe(str)) |imgfile| {
             defer imgfile.close();
             const reader = imgfile.reader();

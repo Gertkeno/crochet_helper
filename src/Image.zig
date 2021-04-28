@@ -35,14 +35,21 @@ pub const Image = struct {
     allocator: *std.mem.Allocator,
 
     pub fn png(filename: [*:0]const u8, allocator: *std.mem.Allocator) !Image {
+        var file = c.fopen(filename, "r") orelse return PNGError.NotFound;
+        defer _ = c.fclose(file);
+
+        var sig: [8]u8 = undefined;
+        _ = c.fread(&sig, 1, 8, file);
+        if (c.png_sig_cmp(&sig, 0, 8) != 0) {
+            return PNGError.NotPNG;
+        }
+
         var png_ptr = c.png_create_read_struct(c.PNG_LIBPNG_VER_STRING, null, null, null);
         var info_ptr = c.png_create_info_struct(png_ptr);
         defer c.png_destroy_read_struct(&png_ptr, &info_ptr, null);
 
-        var file = c.fopen(filename, "r") orelse return PNGError.NotFound;
-        defer _ = c.fclose(file);
-
         c.png_init_io(png_ptr, file);
+        c.png_set_sig_bytes(png_ptr, 8);
         c.png_set_read_status_fn(png_ptr, read_row_callback);
         c.png_set_keep_unknown_chunks(png_ptr, 1, null, 0);
         c.png_read_info(png_ptr, info_ptr);
