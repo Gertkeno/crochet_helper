@@ -22,6 +22,10 @@ pub const Camera = struct {
         };
     }
 
+    fn xoffsetism(self: Camera) i32 {
+        return if (self.offset.x > 0) 0 else -self.offset.x;
+    }
+
     pub fn draw_all(self: Camera) void {
         const s = self.img.stride;
         var x: i32 = 0;
@@ -30,28 +34,33 @@ pub const Camera = struct {
         const wh = self.ctx.window._maxy;
         const iw = @intCast(i32, self.img.width);
 
-        self.ctx.move(curses.Vec.zero());
+        self.ctx.move(curses.Vec{ .x = self.xoffsetism(), .y = 0 });
 
         while (x + y * iw < self.img.width * self.img.height and y < wh) : ({
             x += 1;
+            // drawing overwidth, next line
             if (x >= iw or x >= ww) {
                 x = 0;
                 y += 1;
-                self.ctx.move(curses.Vec{ .x = x, .y = y });
+                self.ctx.move(curses.Vec{ .x = self.xoffsetism(), .y = y });
             }
         }) {
             const ox = x + self.offset.x;
             const oy = y + self.offset.y;
             if (ox < 0 or ox >= self.img.width) {
                 continue;
-            } else if (oy < 0 or oy >= self.img.height) {
+            } else if (oy < 0) {
                 continue;
+            } else if (oy >= self.img.height) {
+                break;
             }
 
             const pos = ox + oy * iw;
             const i = @intCast(usize, pos) * s;
+
             const pixel = curses.Color.from_slice(self.img.pixels[i .. i + s]);
-            const marked = self.progress > if (@divTrunc(pos, iw) & 1 == 0) pos else oy * iw + iw - ox;
+            // even lines marked backwards for zig-zag motion
+            const marked = self.progress > if (oy & 1 == 0) pos else oy * iw + iw - ox - 1;
             self.ctx.fill(pixel, marked);
         }
     }
