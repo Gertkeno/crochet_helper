@@ -163,6 +163,13 @@ pub const Context = struct {
         return @intCast(u8, ch);
     }
 
+    pub fn print_slice(self: Context, str: []const u8) void {
+        _ = c.wattron(self.window, c.COLOR_PAIR(@enumToInt(Color.Name.White)));
+        for (str) |ch| {
+            _ = c.waddch(self.window, ch);
+        }
+    }
+
     pub fn move(self: Context, pos: Vec) void {
         _ = c.wmove(self.window, pos.y, pos.x);
     }

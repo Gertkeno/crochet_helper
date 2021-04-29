@@ -5,9 +5,9 @@ usingnamespace @import("Camera.zig");
 usingnamespace @import("Save.zig");
 
 pub fn main() anyerror!void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = &arena.allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = &gpa.allocator;
 
     var imgbuffer: ?Image = null;
     var imgSave: ?Save = null;
@@ -42,9 +42,15 @@ pub fn main() anyerror!void {
             camera.progress = save.savedProgress;
         }
 
+        var progressCounter = std.ArrayList(u8).init(allocator);
+        defer progressCounter.deinit();
+
         while (true) {
             ctx.clear();
             camera.draw_all();
+            try progressCounter.writer().print("C {:.>6}", .{camera.progress});
+            ctx.print_slice(progressCounter.items);
+            progressCounter.shrink(0);
             ctx.swap();
 
             switch (ctx.get_char() orelse ' ') {
@@ -86,7 +92,9 @@ pub fn main() anyerror!void {
         // save and close
         if (imgSave) |save| {
             try save.close(camera.progress);
+            allocator.free(save.file);
         }
+        img.deinit();
     } else {
         std.log.err("No file specified!", .{});
     }

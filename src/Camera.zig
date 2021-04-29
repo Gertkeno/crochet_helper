@@ -51,7 +51,8 @@ pub const Camera = struct {
             const pos = ox + oy * iw;
             const i = @intCast(usize, pos) * s;
             const pixel = curses.Color.from_slice(self.img.pixels[i .. i + s]);
-            self.ctx.fill(pixel, self.progress > pos);
+            const marked = self.progress > if (@divTrunc(pos, iw) & 1 == 0) pos else oy * iw + iw - ox;
+            self.ctx.fill(pixel, marked);
         }
     }
 
