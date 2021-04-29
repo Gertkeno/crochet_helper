@@ -130,23 +130,27 @@ pub const Context = struct {
     }
 
     pub fn fill(self: Context, color: Color, mark: bool) void {
-        const cint = c.COLOR_PAIR(@enumToInt(color.closest_name()));
+        if (mark) {
+            const monocolor = if (color.magnitude() > 0x8F) Color.Name.White else Color.Name.Black;
 
-        // drawing
-        const char: u8 = switch (color.inverse_magnitude()) {
-            0x00...0x10 => ' ',
-            0x11...0x30 => '.',
-            0x31...0x50 => '_',
-            0x51...0x70 => ':',
-            0x71...0x90 => 'c',
-            0x91...0xB0 => '7',
-            0xB1...0xD0 => 'Q',
-            0xD1...0xFF => '@',
-        };
+            _ = c.wattron(self.window, c.COLOR_PAIR(@enumToInt(monocolor)));
+            _ = c.waddch(self.window, 'X');
+        } else {
+            const cint = c.COLOR_PAIR(@enumToInt(color.closest_name()));
+            const char: u8 = switch (color.inverse_magnitude()) {
+                0x00...0x10 => ' ',
+                0x11...0x30 => '.',
+                0x31...0x50 => '_',
+                0x51...0x70 => ':',
+                0x71...0x90 => 'c',
+                0x91...0xB0 => '7',
+                0xB1...0xD0 => 'Q',
+                0xD1...0xFF => '@',
+            };
 
-        _ = c.wattron(self.window, cint);
-        _ = c.waddch(self.window, if (mark) 'X' else char);
-        //_ = c.wattroff(self.window, cint);
+            _ = c.wattron(self.window, cint);
+            _ = c.waddch(self.window, char);
+        }
     }
 
     pub fn get_char(self: Context) ?u8 {
