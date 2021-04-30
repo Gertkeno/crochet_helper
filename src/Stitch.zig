@@ -65,14 +65,15 @@ pub const Stitches = struct {
     pub fn last_color_change(self: Stitches, pos: usize) usize {
         const x = pos % self.width;
         const y = pos / self.width;
+        const p = self.pixels;
         if (y & 1 == 0) {
-            var i: usize = 0;
-            while (self.pixels[pos].eql(self.pixels[pos - i])) : (i += 1) {}
+            var i: usize = 1;
+            while (p[pos].eql(p[pos - i])) : (i += 1) {}
             return i - 1;
         } else {
-            const start = y + self.width - x;
-            var i: usize = 0;
-            while (self.pixels[start].eql(self.pixels[start + i])) : (i += 1) {}
+            const start = y * self.width + self.width - x;
+            var i: usize = 1;
+            while (p[start].eql(p[start + i])) : (i += 1) {}
             return i;
         }
     }
