@@ -1,15 +1,15 @@
 const std = @import("std");
 const curses = @import("ncurses.zig");
-usingnamespace @import("Image.zig");
+usingnamespace @import("Stitch.zig");
 
 pub const Camera = struct {
     offset: curses.Vec,
     ctx: *const curses.Context,
-    img: Image,
+    img: Stitches,
 
     progress: usize,
 
-    pub fn init(ctx: *const curses.Context, image: Image) Camera {
+    pub fn init(ctx: *const curses.Context, image: Stitches) Camera {
         return Camera{
             .offset = curses.Vec{
                 .x = 0,
@@ -27,7 +27,6 @@ pub const Camera = struct {
     }
 
     pub fn draw_all(self: Camera) void {
-        const s = self.img.stride;
         var x: i32 = 0;
         var y: i32 = 0;
         const ww = self.ctx.window._maxx;
@@ -56,12 +55,12 @@ pub const Camera = struct {
             }
 
             const pos = ox + oy * iw;
-            const i = @intCast(usize, pos) * s;
+            const i = @intCast(usize, pos);
 
-            const pixel = curses.Color.from_slice(self.img.pixels[i .. i + s]);
+            const pixel = self.img.pixels[i];
             // even lines marked backwards for zig-zag motion
             const marked = self.progress > if (oy & 1 == 0) pos else oy * iw + iw - ox - 1;
-            self.ctx.fill(pixel, marked);
+            self.ctx.fill2(pixel.color, if (marked) 'X' else pixel.char);
         }
     }
 

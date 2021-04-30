@@ -1,6 +1,7 @@
 const std = @import("std");
 const curse = @import("ncurses.zig");
 usingnamespace @import("Image.zig");
+usingnamespace @import("Stitch.zig");
 usingnamespace @import("Camera.zig");
 usingnamespace @import("Save.zig");
 
@@ -9,7 +10,7 @@ pub fn main() anyerror!void {
     defer _ = gpa.deinit();
     const allocator = &gpa.allocator;
 
-    var imgbuffer: ?Image = null;
+    var imgbuffer: ?Stitches = null;
     var imgSave: ?Save = null;
 
     var args = std.process.args();
@@ -25,8 +26,11 @@ pub fn main() anyerror!void {
                 continue;
             }
 
-            imgbuffer = try Image.png(arg, allocator);
-            std.log.info("png size {}x{}, d{}", .{ imgbuffer.?.width, imgbuffer.?.height, imgbuffer.?.stride });
+            const img = try Image.png(arg, allocator);
+            defer img.deinit();
+            std.log.info("png size {}x{}, d{}", .{ img.width, img.height, img.stride });
+            imgbuffer = try Stitches.from_image(img, allocator);
+
             const a = [_][]const u8{ arg, ".save" };
             const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
             imgSave = try Save.open(imgSaveFilename);
@@ -47,10 +51,17 @@ pub fn main() anyerror!void {
 
         while (true) {
             ctx.clear();
+
+            // img drawing
             camera.draw_all();
-            try progressCounter.writer().print("C {:.>6}", .{camera.progress});
+
+            // Progress Counter
+            const lineprogress = camera.progress % img.width;
+            const colorprogress = camera.img.last_color_change(camera.progress);
+            try progressCounter.writer().print("T {:.>6} L {:.>6} C {:.>6}", .{ camera.progress, lineprogress, colorprogress });
             ctx.print_slice(progressCounter.items);
             progressCounter.shrink(0);
+
             ctx.swap();
 
             switch (ctx.get_char() orelse ' ') {

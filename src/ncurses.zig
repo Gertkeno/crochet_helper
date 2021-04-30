@@ -50,7 +50,7 @@ pub const Color = struct {
         return eqls;
     }
 
-    pub fn inverse_magnitude(self: Color) u8 {
+    pub fn opposite_magnitude(self: Color) u8 {
         return switch (self.high_bits()) {
             0b001 => (self.underlying[1] / 2 + self.underlying[2] / 2),
             0b010 => (self.underlying[0] / 2 + self.underlying[2] / 2),
@@ -91,7 +91,7 @@ pub const Color = struct {
 test "highest color" {
     const r = Color.from_slice(&[_]u8{ 0xFF, 0, 0 });
     std.testing.expectEqual(Color.Name.Red, r.closest_name());
-    std.testing.expectEqual(@as(u8, 0), r.inverse_magnitude());
+    std.testing.expectEqual(@as(u8, 0), r.opposite_magnitude());
 }
 
 pub const Vec = struct {
@@ -129,6 +129,11 @@ pub const Context = struct {
         _ = c.endwin();
     }
 
+    pub fn fill2(self: Context, color: u8, char: u8) void {
+        _ = c.wattron(self.window, c.COLOR_PAIR(color));
+        _ = c.waddch(self.window, char);
+    }
+
     pub fn fill(self: Context, color: Color, mark: bool) void {
         if (mark) {
             const monocolor = if (color.magnitude() > 0x8F) Color.Name.White else Color.Name.Black;
@@ -137,7 +142,7 @@ pub const Context = struct {
             _ = c.waddch(self.window, 'X');
         } else {
             const cint = c.COLOR_PAIR(@enumToInt(color.closest_name()));
-            const char: u8 = switch (color.inverse_magnitude()) {
+            const char: u8 = switch (color.opposite_magnitude()) {
                 0x00...0x10 => ' ',
                 0x11...0x30 => '.',
                 0x31...0x50 => '_',
