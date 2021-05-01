@@ -58,7 +58,7 @@ pub fn main() anyerror!void {
             // Progress Counter
             const lineprogress = camera.progress % img.width;
             const colorprogress = std.math.min(camera.img.last_color_change(camera.progress), lineprogress);
-            try progressCounter.writer().print("T {:.>6} L {:.>6} C {:.>6}", .{ camera.progress, lineprogress, colorprogress });
+            try progressCounter.writer().print("T {:.>6}/{:.>6} L {:.>4} C {:.>4}", .{ camera.progress, camera.max(), lineprogress, colorprogress });
             ctx.print_slice(progressCounter.items);
             progressCounter.shrink(0);
 

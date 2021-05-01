@@ -81,7 +81,7 @@ pub const Camera = struct {
         }
     }
 
-    fn max(self: Camera) usize {
+    pub fn max(self: Camera) usize {
         return self.img.width * self.img.height;
     }
 };
