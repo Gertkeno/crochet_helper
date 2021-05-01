@@ -57,8 +57,9 @@ pub fn main() anyerror!void {
 
             // Progress Counter
             const lineprogress = camera.progress % img.width;
+            const heightprogress = camera.progress / img.width;
             const colorprogress = std.math.min(camera.img.last_color_change(camera.progress), lineprogress);
-            try progressCounter.writer().print("T {:.>6}/{:.>6} L {:.>4} C {:.>4}", .{ camera.progress, camera.max(), lineprogress, colorprogress });
+            try progressCounter.writer().print("T {:.>6}/{:.>6} Y {:.>4} L {:.>4} C {:.>4}", .{ camera.progress, camera.max(), heightprogress, lineprogress, colorprogress });
             ctx.print_slice(progressCounter.items);
             progressCounter.shrink(0);
 
@@ -108,5 +109,15 @@ pub fn main() anyerror!void {
         img.deinit();
     } else {
         std.log.err("No file specified!", .{});
+        std.log.notice(
+            \\Usage: crochet-helper FILE
+            \\only supports png files, produces FILE.save for storing progress
+            \\
+            \\Status bar info:
+            \\T total stitches made / total stitches in project
+            \\Y lines done
+            \\L stitches since last line
+            \\C stitches since last color change
+        , .{});
     }
 }
