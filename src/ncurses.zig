@@ -129,33 +129,9 @@ pub const Context = struct {
         _ = c.endwin();
     }
 
-    pub fn fill2(self: Context, color: u8, char: u8) void {
+    pub fn fill(self: Context, color: u8, char: u8) void {
         _ = c.wattron(self.window, c.COLOR_PAIR(color));
         _ = c.waddch(self.window, char);
-    }
-
-    pub fn fill(self: Context, color: Color, mark: bool) void {
-        if (mark) {
-            const monocolor = if (color.magnitude() > 0x8F) Color.Name.White else Color.Name.Black;
-
-            _ = c.wattron(self.window, c.COLOR_PAIR(@enumToInt(monocolor)));
-            _ = c.waddch(self.window, 'X');
-        } else {
-            const cint = c.COLOR_PAIR(@enumToInt(color.closest_name()));
-            const char: u8 = switch (color.opposite_magnitude()) {
-                0x00...0x10 => ' ',
-                0x11...0x30 => '.',
-                0x31...0x50 => '_',
-                0x51...0x70 => ':',
-                0x71...0x90 => 'c',
-                0x91...0xB0 => '7',
-                0xB1...0xD0 => 'Q',
-                0xD1...0xFF => '@',
-            };
-
-            _ = c.wattron(self.window, cint);
-            _ = c.waddch(self.window, char);
-        }
     }
 
     pub fn get_char(self: Context) ?u8 {

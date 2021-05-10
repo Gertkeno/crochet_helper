@@ -60,7 +60,7 @@ pub const Camera = struct {
             const pixel = self.img.pixels[i];
             // even lines marked backwards for zig-zag motion
             const marked = self.progress > if (oy & 1 == 0) pos else oy * iw + iw - ox - 1;
-            self.ctx.fill2(pixel.color, if (marked) 'X' else pixel.char);
+            self.ctx.fill(pixel.color, if (marked) 'X' else pixel.char);
         }
     }
 
