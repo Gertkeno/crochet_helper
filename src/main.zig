@@ -1,15 +1,13 @@
 const std = @import("std");
 const sdl = @import("SDL2.zig");
 usingnamespace @import("Camera.zig");
-usingnamespace @import("Save.zig");
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = &gpa.allocator;
 
-    var imgFilename: ?[*:0]const u8 = null;
-    var imgSave: ?Save = null;
+    var imgFilename: ?[]const u8 = null;
 
     var args = std.process.args();
     _ = args.skip();
@@ -25,21 +23,14 @@ pub fn main() anyerror!void {
             }
 
             imgFilename = arg;
-
-            const a = [_][]const u8{ arg, ".save" };
-            const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
-            imgSave = try Save.open(imgSaveFilename);
         }
     }
 
     if (imgFilename) |img| {
-        var ctx = try sdl.Context.init(img);
+        var ctx = try sdl.Context.init(img, allocator);
         defer ctx.deinit();
 
         var camera = Camera.init(&ctx, img);
-        if (imgSave) |save| {
-            camera.progress = save.progress;
-        }
 
         var progressCounter = std.ArrayList(u8).init(allocator);
         defer progressCounter.deinit();
@@ -95,13 +86,6 @@ pub fn main() anyerror!void {
                 else => {},
             }
         }
-
-        // save and close
-        if (imgSave) |save| {
-            try save.close(camera.progress);
-            allocator.free(save.file);
-        }
-        img.deinit();
     } else {
         std.log.err("No file specified!", .{});
         std.log.notice(

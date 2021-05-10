@@ -34,13 +34,21 @@ pub const Save = struct {
         }
     }
 
-    pub fn close(self: Save, newValue: usize) !void {
+    pub fn close(self: Save) !void {
         if (std.fs.cwd().createFile(self.file, .{})) |imgfile| {
             defer imgfile.close();
             const writer = imgfile.writer();
-            try writer.writeIntNative(usize, newValue);
+            try writer.writeIntNative(usize, self.progress);
         } else |err| {
             return err;
+        }
+    }
+
+    pub fn increment(self: *Save, value: i32) void {
+        if (value < 0 and self.progress <= -value) {
+            self.progress = 0;
+        } else {
+            self.progress += value;
         }
     }
 };

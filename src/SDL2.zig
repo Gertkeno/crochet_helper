@@ -4,6 +4,8 @@ pub const c = @cImport({
     @cInclude("SDL2/SDL_image.h");
 });
 
+usingnamespace @import("Save.zig");
+
 pub const ContextError = error{
     InitError,
     WindowError,
@@ -12,10 +14,14 @@ pub const ContextError = error{
 };
 
 pub const Context = struct {
+    allocator: *std.mem.Allocator,
+
     window: *c.SDL_Window,
     render: *c.SDL_Renderer,
 
+    save: Save,
     texture: *c.SDL_Texture,
+
     offset: struct {
         x: f32,
         y: f32,
@@ -23,7 +29,8 @@ pub const Context = struct {
     // left, right, up, down
     scrolling: u4,
 
-    pub fn init(filename: [*:0]const u8) !Context {
+    pub fn init(filename: []const u8, allocator: *std.mem.Allocator) !Context {
+        // SDL2 init
         if (c.SDL_Init(c.SDL_INIT_EVENTS) != 0) {
             std.log.err("Failed to init SDL2: {s}", .{c.SDL_GetError()});
             return ContextError.InitError;
@@ -43,7 +50,10 @@ pub const Context = struct {
             return ContextError.RendererError;
         };
 
-        const tsurf = c.IMG_Load(filename) orelse {
+        // image loading
+        const cfn = try std.cstr.addNullByte(allocator, filename);
+        defer allocator.free(cfn);
+        const tsurf = c.IMG_Load(cfn) orelse {
             std.log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
             return ContextError.TextureError;
         };
@@ -52,9 +62,17 @@ pub const Context = struct {
             return ContextError.TextureError;
         };
 
+        // Save reading
+        const a = [_][]const u8{ filename, ".save" };
+        const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
+        const imgSave = try Save.open(imgSaveFilename);
+
         return Context{
+            .allocator = allocator,
+
             .window = window,
             .render = renderer,
+            .save = imgSave,
             .texture = texture,
 
             .offset = .{ .x = 0, .y = 0 },
@@ -63,6 +81,11 @@ pub const Context = struct {
     }
 
     pub fn deinit(self: Context) void {
+        self.save.close() catch |err| {
+            std.log.err("Error saving: {}", .{err});
+            std.log.err("here's your number: {}", .{self.save.progress});
+        };
+        self.allocator.free(self.save.file);
         c.SDL_DestroyRenderer(self.render);
         c.SDL_DestroyWindow(self.window);
         c.IMG_Quit();
