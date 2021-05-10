@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const Save = struct {
-    savedProgress: usize,
+    progress: usize,
     file: []const u8,
 
     fn open_maybe(str: []const u8) !?std.fs.File {
@@ -20,15 +20,15 @@ pub const Save = struct {
         if (try open_maybe(str)) |imgfile| {
             defer imgfile.close();
             const reader = imgfile.reader();
-            const savedProgress = try reader.readIntNative(usize);
+            const savedprogress = try reader.readIntNative(usize);
 
             return Save{
-                .savedProgress = savedProgress,
+                .progress = savedprogress,
                 .file = str,
             };
         } else {
             return Save{
-                .savedProgress = 0,
+                .progress = 0,
                 .file = str,
             };
         }

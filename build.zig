@@ -15,9 +15,9 @@ pub fn build(b: *Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    exe.linkSystemLibrary("png");
-    exe.linkSystemLibrary("ncurses");
     exe.linkLibC();
+    exe.linkSystemLibrary("SDL2");
+    exe.linkSystemLibrary("SDL2_image");
 
     exe.install();
 

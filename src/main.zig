@@ -1,7 +1,5 @@
 const std = @import("std");
-const curse = @import("ncurses.zig");
-usingnamespace @import("Image.zig");
-usingnamespace @import("Stitch.zig");
+const sdl = @import("SDL2.zig");
 usingnamespace @import("Camera.zig");
 usingnamespace @import("Save.zig");
 
@@ -10,7 +8,7 @@ pub fn main() anyerror!void {
     defer _ = gpa.deinit();
     const allocator = &gpa.allocator;
 
-    var imgbuffer: ?Stitches = null;
+    var imgFilename: ?[*:0]const u8 = null;
     var imgSave: ?Save = null;
 
     var args = std.process.args();
@@ -21,15 +19,12 @@ pub fn main() anyerror!void {
             std.log.warn("unkown option \"{s}\"", .{arg});
             return;
         } else {
-            if (imgbuffer != null) {
+            if (imgFilename != null) {
                 std.log.warn("a file has already been read, ignoring \"{}\"", .{arg});
                 continue;
             }
 
-            const img = try Image.png(arg, allocator);
-            defer img.deinit();
-            std.log.info("png size {}x{}, d{}", .{ img.width, img.height, img.stride });
-            imgbuffer = try Stitches.from_image(img, allocator);
+            imgFilename = arg;
 
             const a = [_][]const u8{ arg, ".save" };
             const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
@@ -37,13 +32,13 @@ pub fn main() anyerror!void {
         }
     }
 
-    if (imgbuffer) |img| {
-        var ctx = curse.Context.init();
+    if (imgFilename) |img| {
+        var ctx = try sdl.Context.init(img);
         defer ctx.deinit();
 
         var camera = Camera.init(&ctx, img);
         if (imgSave) |save| {
-            camera.progress = save.savedProgress;
+            camera.progress = save.progress;
         }
 
         var progressCounter = std.ArrayList(u8).init(allocator);
