@@ -166,6 +166,9 @@ pub const Context = struct {
                 else => 0,
             };
             self.save.increment(incval);
+            if (self.save.progress > self.max()) {
+                self.save.progress = self.max();
+            }
         }
 
         // movement mask
@@ -320,8 +323,10 @@ pub const Context = struct {
             self.draw_all();
             // render progress counter
             {
-                const lineprogress = self.save.progress % self.width;
-                if (progressCounter.writer().print("T{:.>6}/{:.>6} L{: >4}", .{ self.save.progress, self.max(), lineprogress })) {
+                const lp = self.save.progress % self.width;
+                const hp = self.save.progress / self.width;
+                const cp = std.math.min(lp, self.last_color_change());
+                if (progressCounter.writer().print("T{:.>6}/{:.>6} Y{} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), hp, lp, cp })) {
                     self.print_slice(progressCounter.items, 0, 0);
                 } else |err| {
                     std.log.warn("Progress counter errored with: {}", .{err});
@@ -335,21 +340,35 @@ pub const Context = struct {
                 c.SDL_Delay(@intCast(u32, 33 - frameTime));
             }
         }
-
-        //const p = ctx.save.progress;
-        //const lineprogress = p % ctx.width;
-        //const heightprogress = p / ctx.width;
-        //const colorprogress = std.math.min(camera.img.last_color_change(camera.progress), lineprogress);
-        //try progressCounter.writer().print("T {:.>6}/{:.>6} Y {:.>4} L {:.>4} C {:.>4}", .{ camera.progress, camera.max(), heightprogress, lineprogress, colorprogress });
-        //ctx.print_slice(progressCounter.items);
-        //progressCounter.shrink(0);
     }
 
     //////////////////////
     // PROGRESS READERS //
     //////////////////////
-
     fn max(self: Context) usize {
         return self.width * self.height;
+    }
+
+    fn pixel_at_index(self: Context, i: usize) []const u8 {
+        const is = i * 4;
+        return self.pixels[is .. is + 3];
+    }
+
+    fn last_color_change(self: Context) usize {
+        const p = self.save.progress;
+        const x = p % self.width;
+        const y = p / self.width;
+        if (y & 1 == 0) {
+            const start = self.pixel_at_index(p);
+            var i: usize = 1;
+            while (std.mem.eql(u8, start, self.pixel_at_index(p - i))) : (i += 1) {}
+            return i - 1;
+        } else {
+            const op = y * self.width + self.width - x - 1;
+            const start = self.pixel_at_index(op);
+            var i: usize = 1;
+            while (std.mem.eql(u8, start, self.pixel_at_index(op + i))) : (i += 1) {}
+            return i - 1;
+        }
     }
 };
