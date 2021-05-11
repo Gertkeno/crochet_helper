@@ -34,10 +34,10 @@ pub const Context = struct {
     // drawing / movement
     /////////////////////
     offset: struct {
-        x: f32,
-        y: f32,
-        z: i32,
-    },
+        x: f32 = 0,
+        y: f32 = 0,
+        z: i32 = 8,
+    } = .{},
     // left, right, up, down
     scrolling: u4,
 
@@ -100,7 +100,6 @@ pub const Context = struct {
             .height = @intCast(usize, tsurf[0].h),
             .texture = texture,
 
-            .offset = .{ .x = 0, .y = 0, .z = 4 },
             .scrolling = 0,
 
             .running = true,
@@ -210,7 +209,7 @@ pub const Context = struct {
         if (y & 1 == 0) {
             // left to right
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
-            _ = c.SDL_RenderDrawLine(self.render, 0, oy, ox, oy);
+            _ = c.SDL_RenderDrawLine(self.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
 
             _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
             var i: i32 = 0;
@@ -232,6 +231,7 @@ pub const Context = struct {
     }
 
     fn clear(self: Context) void {
+        _ = c.SDL_SetRenderDrawColor(self.render, 0, 0, 0, 0xFF);
         if (c.SDL_RenderClear(self.render) != 0) {
             std.log.notice("Failed to clear renderer: {s}", .{c.SDL_GetError()});
         }
