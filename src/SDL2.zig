@@ -206,7 +206,7 @@ pub const Context = struct {
         const y = self.save.progress / self.width + 1;
         const x = self.save.progress % self.width;
         const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z - @divTrunc(self.offset.z, 2);
-        if (y & 1 == 0) {
+        if (y & 1 == 1) {
             // left to right
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
             _ = c.SDL_RenderDrawLine(self.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
