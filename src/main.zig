@@ -1,6 +1,5 @@
 const std = @import("std");
 const sdl = @import("SDL2.zig");
-usingnamespace @import("Camera.zig");
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -30,62 +29,7 @@ pub fn main() anyerror!void {
         var ctx = try sdl.Context.init(img, allocator);
         defer ctx.deinit();
 
-        var camera = Camera.init(&ctx, img);
-
-        var progressCounter = std.ArrayList(u8).init(allocator);
-        defer progressCounter.deinit();
-
-        while (true) {
-            ctx.clear();
-
-            // img drawing
-            camera.draw_all();
-
-            // Progress Counter
-            const lineprogress = camera.progress % img.width;
-            const heightprogress = camera.progress / img.width;
-            const colorprogress = std.math.min(camera.img.last_color_change(camera.progress), lineprogress);
-            try progressCounter.writer().print("T {:.>6}/{:.>6} Y {:.>4} L {:.>4} C {:.>4}", .{ camera.progress, camera.max(), heightprogress, lineprogress, colorprogress });
-            ctx.print_slice(progressCounter.items);
-            progressCounter.shrink(0);
-
-            ctx.swap();
-
-            switch (ctx.get_char() orelse ' ') {
-                'q' => {
-                    break;
-                },
-                'w' => {
-                    camera.offset.y -= 1;
-                },
-                's' => {
-                    camera.offset.y += 1;
-                },
-                'a' => {
-                    camera.offset.x -= 1;
-                },
-                'd' => {
-                    camera.offset.x += 1;
-                },
-                // progress shifts
-                'z' => {
-                    camera.add_progress(-10);
-                },
-                'x' => {
-                    camera.add_progress(-1);
-                },
-                'c' => {
-                    camera.add_progress(1);
-                },
-                'v' => {
-                    camera.add_progress(10);
-                },
-                'b' => {
-                    camera.add_progress(25);
-                },
-                else => {},
-            }
-        }
+        ctx.main_loop(allocator);
     } else {
         std.log.err("No file specified!", .{});
         std.log.notice(

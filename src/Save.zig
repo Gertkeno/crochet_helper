@@ -48,7 +48,7 @@ pub const Save = struct {
         if (value < 0 and self.progress <= -value) {
             self.progress = 0;
         } else {
-            self.progress += value;
+            self.progress = @intCast(usize, @intCast(i64, self.progress) + value);
         }
     }
 };
