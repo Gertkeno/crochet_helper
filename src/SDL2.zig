@@ -5,6 +5,7 @@ pub const c = @cImport({
 });
 
 usingnamespace @import("Save.zig");
+const font_franklin = @embedFile("franklin.bmp");
 
 pub const ContextError = error{
     InitError,
@@ -27,6 +28,8 @@ pub const Context = struct {
     //////////
     save: Save,
     texture: *c.SDL_Texture,
+    font: *c.SDL_Texture,
+    pixels: []const u8,
     width: usize,
     height: usize,
 
@@ -41,7 +44,7 @@ pub const Context = struct {
     // left, right, up, down
     scrolling: u4,
 
-    const HintDotsWidth = 8;
+    const HintDotsWidth = 10;
 
     //////////
     // INIT //
@@ -77,11 +80,26 @@ pub const Context = struct {
             return ContextError.TextureError;
         };
         defer c.SDL_FreeSurface(tsurf);
-        const texture = c.SDL_CreateTextureFromSurface(renderer, tsurf) orelse {
+        const pct = @ptrCast([*]const u8, tsurf[0].pixels);
+        const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf[0].w * tsurf[0].h)]);
+        errdefer allocator.free(pixels);
+
+        const ttexture = c.SDL_CreateTextureFromSurface(renderer, tsurf) orelse {
             std.log.err("Failed to create texture for image: {s}", .{c.SDL_GetError()});
             return ContextError.TextureError;
         };
-        errdefer c.SDL_DestroyTexture(texture);
+        errdefer c.SDL_DestroyTexture(ttexture);
+
+        const fsurf = c.SDL_LoadBMP_RW(c.SDL_RWFromConstMem(&font_franklin[0], font_franklin.len), 1) orelse {
+            std.log.err("Failed to create font surface from interal image: {s}", .{c.SDL_GetError()});
+            return ContextError.TextureError;
+        };
+        defer c.SDL_FreeSurface(fsurf);
+        _ = c.SDL_SetColorKey(fsurf, c.SDL_TRUE, c.SDL_MapRGB(fsurf[0].format, 0xFF, 0, 0xFF));
+        const ftexture = c.SDL_CreateTextureFromSurface(renderer, fsurf) orelse {
+            std.log.err("Failed to create font from internal image: {s}", .{c.SDL_GetError()});
+            return ContextError.TextureError;
+        };
 
         // Save reading
         const a = [_][]const u8{ filename, ".save" };
@@ -98,7 +116,9 @@ pub const Context = struct {
             .save = imgSave,
             .width = @intCast(usize, tsurf[0].w),
             .height = @intCast(usize, tsurf[0].h),
-            .texture = texture,
+            .texture = ttexture,
+            .font = ftexture,
+            .pixels = pixels,
 
             .scrolling = 0,
 
@@ -112,6 +132,7 @@ pub const Context = struct {
             std.log.err("here's your progress number: {}", .{self.save.progress});
         };
         self.allocator.free(self.save.file);
+        self.allocator.free(self.pixels);
         c.SDL_DestroyRenderer(self.render);
         c.SDL_DestroyWindow(self.window);
         c.IMG_Quit();
@@ -203,10 +224,10 @@ pub const Context = struct {
 
         // draw progress
         _ = c.SDL_SetRenderDrawColor(self.render, 0xFF, 0, 0x7F, 0xFF);
-        const y = self.save.progress / self.width + 1;
+        const y = self.save.progress / self.width;
         const x = self.save.progress % self.width;
-        const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z - @divTrunc(self.offset.z, 2);
-        if (y & 1 == 1) {
+        const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z + @divTrunc(self.offset.z, 2);
+        if (y & 1 == 0) {
             // left to right
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
             _ = c.SDL_RenderDrawLine(self.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
@@ -230,6 +251,15 @@ pub const Context = struct {
         }
     }
 
+    fn set_inverse_color(self: Context, x: usize, y: usize) void {
+        const pos = (x + y * self.width) * 4;
+        const pixel = self.pixels[pos .. pos + 3];
+        const r = 255 - pixel[0];
+        const g = 255 - pixel[1];
+        const b = 255 - pixel[2];
+        _ = c.SDL_SetRenderDrawColor(self.render, r, g, b, 0xFF);
+    }
+
     fn clear(self: Context) void {
         _ = c.SDL_SetRenderDrawColor(self.render, 0, 0, 0, 0xFF);
         if (c.SDL_RenderClear(self.render) != 0) {
@@ -239,6 +269,29 @@ pub const Context = struct {
 
     fn swap(self: Context) void {
         c.SDL_RenderPresent(self.render);
+    }
+
+    //////////
+    // FONT //
+    //////////
+    fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
+        for (str) |char, n| {
+            const cx = @intCast(i32, char % 16) * 32;
+            const cy = @intCast(i32, char / 16) * 32;
+            const srcRect = c.SDL_Rect{
+                .x = cx,
+                .y = cy,
+                .w = 32,
+                .h = 32,
+            };
+            const dstRect = c.SDL_Rect{
+                .x = x + @intCast(i32, n * 20),
+                .y = y,
+                .w = 32,
+                .h = 32,
+            };
+            _ = c.SDL_RenderCopy(self.render, self.font, &srcRect, &dstRect);
+        }
     }
 
     ///////////////
@@ -266,6 +319,15 @@ pub const Context = struct {
             self.clear();
             self.draw_all();
             // render progress counter
+            {
+                const lineprogress = self.save.progress % self.width;
+                if (progressCounter.writer().print("T{:.>6}/{:.>6} L{: >4}", .{ self.save.progress, self.max(), lineprogress })) {
+                    self.print_slice(progressCounter.items, 0, 0);
+                } else |err| {
+                    std.log.warn("Progress counter errored with: {}", .{err});
+                }
+                progressCounter.shrink(0);
+            }
             self.swap();
 
             const frameTime = std.time.milliTimestamp() - frameStart;
@@ -281,5 +343,13 @@ pub const Context = struct {
         //try progressCounter.writer().print("T {:.>6}/{:.>6} Y {:.>4} L {:.>4} C {:.>4}", .{ camera.progress, camera.max(), heightprogress, lineprogress, colorprogress });
         //ctx.print_slice(progressCounter.items);
         //progressCounter.shrink(0);
+    }
+
+    //////////////////////
+    // PROGRESS READERS //
+    //////////////////////
+
+    fn max(self: Context) usize {
+        return self.width * self.height;
     }
 };
