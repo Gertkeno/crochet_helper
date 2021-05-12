@@ -8,10 +8,10 @@ pub const Save = struct {
         if (std.fs.cwd().openFile(str, .{})) |imgfile| {
             return imgfile;
         } else |err| {
-            if (err != error.FileNotFound) {
-                return err;
-            } else {
+            if (err == error.FileNotFound) {
                 return null;
+            } else {
+                return err;
             }
         }
     }
@@ -34,14 +34,11 @@ pub const Save = struct {
         }
     }
 
-    pub fn close(self: Save) !void {
-        if (std.fs.cwd().createFile(self.file, .{})) |imgfile| {
-            defer imgfile.close();
-            const writer = imgfile.writer();
-            try writer.writeIntNative(usize, self.progress);
-        } else |err| {
-            return err;
-        }
+    pub fn write(self: Save) !void {
+        const imgfile = try std.fs.cwd().createFile(self.file, .{});
+        defer imgfile.close();
+        const writer = imgfile.writer();
+        try writer.writeIntNative(usize, self.progress);
     }
 
     pub fn increment(self: *Save, value: i32) void {

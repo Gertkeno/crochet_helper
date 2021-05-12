@@ -127,7 +127,7 @@ pub const Context = struct {
     }
 
     pub fn deinit(self: Context) void {
-        self.save.close() catch |err| {
+        self.save.write() catch |err| {
             std.log.err("Error saving: {}", .{err});
             std.log.err("here's your progress number: {}", .{self.save.progress});
         };
@@ -162,13 +162,17 @@ pub const Context = struct {
                 c.SDLK_x => -1,
                 c.SDLK_c => 1,
                 c.SDLK_v => 10,
-                c.SDLK_b => 25,
                 else => 0,
             };
             self.save.increment(incval);
             if (self.save.progress > self.max()) {
                 self.save.progress = self.max();
             }
+
+            self.save.write() catch |err| {
+                std.log.warn("Failed to save progress cause: {}", .{err});
+                std.log.warn("You may want this number: {}", .{self.save.progress});
+            };
         }
 
         // movement mask
