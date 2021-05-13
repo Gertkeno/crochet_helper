@@ -45,6 +45,8 @@ pub const Context = struct {
     scrolling: u4,
 
     const HintDotsWidth = 10;
+    const FrameRate = 24;
+    const FrameTimeMS = 1000 / FrameRate;
 
     //////////
     // INIT //
@@ -59,14 +61,15 @@ pub const Context = struct {
 
         const wflags = c.SDL_WINDOW_RESIZABLE;
         const pos = c.SDL_WINDOWPOS_CENTERED;
-        const window = c.SDL_CreateWindow("crochet helper", pos, pos, 800, 600, wflags) orelse {
+        const window = c.SDL_CreateWindow("gert's crochet helper", pos, pos, 800, 600, wflags) orelse {
             std.log.err("Failed to create Window: {s}", .{c.SDL_GetError()});
             return ContextError.WindowError;
         };
         errdefer c.SDL_DestroyWindow(window);
 
-        const rflags = c.SDL_RENDERER_PRESENTVSYNC | c.SDL_RENDERER_ACCELERATED;
-        const renderer = c.SDL_CreateRenderer(window, -1, rflags) orelse {
+        const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse
+            c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_SOFTWARE) orelse
+            {
             std.log.err("Failed to create renderer: {s}", .{c.SDL_GetError()});
             return ContextError.RendererError;
         };
@@ -292,7 +295,7 @@ pub const Context = struct {
                 .h = 32,
             };
             const dstRect = c.SDL_Rect{
-                .x = x + @intCast(i32, n * 20),
+                .x = x + @intCast(i32, n * 18),
                 .y = y,
                 .w = 32,
                 .h = 32,
@@ -308,9 +311,8 @@ pub const Context = struct {
         var progressCounter = std.ArrayList(u8).init(allocator);
         defer progressCounter.deinit();
 
-        var frameStart = std.time.milliTimestamp();
-
         while (self.running) {
+            const frameStart = std.time.milliTimestamp();
             self.handle_events();
             if (self.scrolling & 0b1000 != 0) {
                 self.offset.x -= 10;
@@ -325,8 +327,7 @@ pub const Context = struct {
 
             self.clear();
             self.draw_all();
-            // render progress counter
-            {
+            { // render progress counter
                 const lp = self.save.progress % self.width;
                 const hp = self.save.progress / self.width;
                 const cp = std.math.min(lp, self.last_color_change());
@@ -339,9 +340,10 @@ pub const Context = struct {
             }
             self.swap();
 
+            // frame limit with SDL_Delay
             const frameTime = std.time.milliTimestamp() - frameStart;
-            if (frameTime < 33) {
-                c.SDL_Delay(@intCast(u32, 33 - frameTime));
+            if (frameTime < FrameTimeMS) {
+                c.SDL_Delay(@intCast(u32, FrameTimeMS - frameTime));
             }
         }
     }
