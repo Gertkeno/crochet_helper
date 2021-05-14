@@ -16,8 +16,18 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(mode);
 
     exe.linkLibC();
-    exe.linkSystemLibrary("SDL2");
-    exe.linkSystemLibrary("SDL2_image");
+    if (target.os_tag != null and target.os_tag.? == .windows) {
+        const wsdl2 = "SDL2-2.0.14/x86_64-w64-mingw32/";
+        exe.addIncludeDir(wsdl2 ++ "include");
+
+        exe.addLibPath(wsdl2 ++ "bin");
+        exe.addObjectFile(wsdl2 ++ "lib/libSDL2.dll.a");
+        exe.addObjectFile(wsdl2 ++ "lib/libSDL2main.a");
+        exe.addObjectFile(wsdl2 ++ "lib/libSDL2_image.dll.a");
+    } else {
+        exe.linkSystemLibrary("SDL2");
+        exe.linkSystemLibrary("SDL2_image");
+    }
 
     exe.install();
 

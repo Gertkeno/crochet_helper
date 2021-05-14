@@ -10,7 +10,10 @@ pub fn main() anyerror!void {
 
     var args = std.process.args();
     _ = args.skip();
-    while (args.nextPosix()) |arg| {
+    while (args.next(allocator)) |argerr| {
+        const arg = try argerr;
+        defer allocator.free(arg);
+
         if (arg.len != 0 and arg[0] == '-') {
             // options?
             std.log.warn("unkown option \"{s}\"", .{arg});
@@ -21,11 +24,12 @@ pub fn main() anyerror!void {
                 continue;
             }
 
-            imgFilename = arg;
+            imgFilename = try allocator.dupe(u8, arg);
         }
     }
 
     if (imgFilename) |img| {
+        defer allocator.free(img);
         var ctx = try sdl.Context.init(img, allocator);
         defer ctx.deinit();
 

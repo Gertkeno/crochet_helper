@@ -77,11 +77,11 @@ pub const Context = struct {
 
         // image loading
         const cfn = try std.cstr.addNullByte(allocator, filename);
-        defer allocator.free(cfn);
         const tsurf = c.IMG_Load(cfn) orelse {
             std.log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
             return ContextError.TextureError;
         };
+        allocator.free(cfn);
         defer c.SDL_FreeSurface(tsurf);
         const pct = @ptrCast([*]const u8, tsurf[0].pixels);
         const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf[0].w * tsurf[0].h)]);
