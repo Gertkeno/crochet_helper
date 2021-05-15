@@ -84,7 +84,7 @@ pub const Context = struct {
         allocator.free(cfn);
         defer c.SDL_FreeSurface(tsurf);
         const pct = @ptrCast([*]const u8, tsurf[0].pixels);
-        const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf[0].w * tsurf[0].h)]);
+        const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf[0].w * tsurf[0].h * 4)]);
         errdefer allocator.free(pixels);
 
         const ttexture = c.SDL_CreateTextureFromSurface(renderer, tsurf) orelse {
@@ -362,18 +362,22 @@ pub const Context = struct {
 
     fn last_color_change(self: Context) usize {
         const p = self.save.progress;
+        if (p == self.max()) {
+            return 0;
+        }
+
         const x = p % self.width;
         const y = p / self.width;
         if (y & 1 == 0) {
             const start = self.pixel_at_index(p);
             var i: usize = 1;
-            while (std.mem.eql(u8, start, self.pixel_at_index(p - i))) : (i += 1) {}
+            while (i < p and std.mem.eql(u8, start, self.pixel_at_index(p - i))) : (i += 1) {}
             return i - 1;
         } else {
             const op = y * self.width + self.width - x - 1;
             const start = self.pixel_at_index(op);
             var i: usize = 1;
-            while (std.mem.eql(u8, start, self.pixel_at_index(op + i))) : (i += 1) {}
+            while (i + op < self.max() and std.mem.eql(u8, start, self.pixel_at_index(op + i))) : (i += 1) {}
             return i - 1;
         }
     }
