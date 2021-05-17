@@ -30,6 +30,7 @@ pub const Context = struct {
     texture: *c.SDL_Texture,
     font: *c.SDL_Texture,
     pixels: []const u8,
+    stride: u8,
     width: usize,
     height: usize,
 
@@ -77,11 +78,13 @@ pub const Context = struct {
 
         // image loading
         const cfn = try std.cstr.addNullByte(allocator, filename);
+        defer allocator.free(cfn);
         const tsurf = c.IMG_Load(cfn) orelse {
             std.log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
             return ContextError.TextureError;
         };
-        allocator.free(cfn);
+        const stride = tsurf[0].format[0].BytesPerPixel;
+
         defer c.SDL_FreeSurface(tsurf);
         const pct = @ptrCast([*]const u8, tsurf[0].pixels);
         const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf[0].w * tsurf[0].h * 4)]);
@@ -122,6 +125,7 @@ pub const Context = struct {
             .texture = ttexture,
             .font = ftexture,
             .pixels = pixels,
+            .stride = stride,
 
             .scrolling = 0,
 
@@ -262,7 +266,7 @@ pub const Context = struct {
     }
 
     fn set_inverse_color(self: Context, x: usize, y: usize) void {
-        const pos = (x + y * self.width) * 4;
+        const pos = (x + y * self.width) * self.stride;
         const pixel = self.pixels[pos .. pos + 3];
         const r = 255 - pixel[0];
         const g = 255 - pixel[1];
@@ -356,7 +360,7 @@ pub const Context = struct {
     }
 
     fn pixel_at_index(self: Context, i: usize) []const u8 {
-        const is = i * 4;
+        const is = i * self.stride;
         return self.pixels[is .. is + 3];
     }
 
