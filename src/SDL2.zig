@@ -43,7 +43,8 @@ pub const Context = struct {
         z: i32 = 8,
     } = .{},
     // left, right, up, down
-    scrolling: u4,
+    scrolling: u4 = 0,
+    expandedView: bool = true,
 
     const HintDotsWidth = 10;
     const FrameRate = 24;
@@ -79,15 +80,15 @@ pub const Context = struct {
         // image loading
         const cfn = try std.cstr.addNullByte(allocator, filename);
         defer allocator.free(cfn);
-        const tsurf = c.IMG_Load(cfn) orelse {
+        const tsurf: *c.SDL_Surface = c.IMG_Load(cfn) orelse {
             std.log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
             return ContextError.TextureError;
         };
-        const stride = tsurf[0].format[0].BytesPerPixel;
+        const stride = tsurf.format.*.BytesPerPixel;
 
         defer c.SDL_FreeSurface(tsurf);
-        const pct = @ptrCast([*]const u8, tsurf[0].pixels);
-        const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf[0].w * tsurf[0].h * 4)]);
+        const pct = @ptrCast([*]const u8, tsurf.pixels);
+        const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf.w * tsurf.h * @intCast(c_int, stride))]);
         errdefer allocator.free(pixels);
 
         const ttexture = c.SDL_CreateTextureFromSurface(renderer, tsurf) orelse {
@@ -96,12 +97,12 @@ pub const Context = struct {
         };
         errdefer c.SDL_DestroyTexture(ttexture);
 
-        const fsurf = c.SDL_LoadBMP_RW(c.SDL_RWFromConstMem(&font_franklin[0], font_franklin.len), 1) orelse {
+        const fsurf: *c.SDL_Surface = c.SDL_LoadBMP_RW(c.SDL_RWFromConstMem(font_franklin, font_franklin.len), 1) orelse {
             std.log.err("Failed to create font surface from interal image: {s}", .{c.SDL_GetError()});
             return ContextError.TextureError;
         };
         defer c.SDL_FreeSurface(fsurf);
-        _ = c.SDL_SetColorKey(fsurf, c.SDL_TRUE, c.SDL_MapRGB(fsurf[0].format, 0xFF, 0, 0xFF));
+        _ = c.SDL_SetColorKey(fsurf, c.SDL_TRUE, c.SDL_MapRGB(fsurf.format, 0xFF, 0, 0xFF));
         const ftexture = c.SDL_CreateTextureFromSurface(renderer, fsurf) orelse {
             std.log.err("Failed to create font from internal image: {s}", .{c.SDL_GetError()});
             return ContextError.TextureError;
@@ -120,14 +121,14 @@ pub const Context = struct {
             .render = renderer,
 
             .save = imgSave,
-            .width = @intCast(usize, tsurf[0].w),
-            .height = @intCast(usize, tsurf[0].h),
+            .width = @intCast(usize, tsurf.w),
+            .height = @intCast(usize, tsurf.h),
             .texture = ttexture,
             .font = ftexture,
             .pixels = pixels,
             .stride = stride,
 
-            .scrolling = 0,
+            .expandedView = imgSave.progress == 0,
 
             .running = true,
         };
@@ -160,6 +161,9 @@ pub const Context = struct {
                 c.SDLK_q => {
                     self.offset.z = std.math.max(1, self.offset.z - 1);
                 },
+                c.SDLK_SLASH => {
+                    self.expandedView = !self.expandedView;
+                },
                 else => {},
             }
 
@@ -169,6 +173,8 @@ pub const Context = struct {
                 c.SDLK_x => -1,
                 c.SDLK_c => 1,
                 c.SDLK_v => 10,
+                c.SDLK_F1 => if (std.builtin.mode == .Debug) 999999 else 0,
+                c.SDLK_F2 => if (std.builtin.mode == .Debug) -999999 else 0,
                 else => 0,
             };
             self.save.increment(incval);
@@ -289,7 +295,15 @@ pub const Context = struct {
     // FONT //
     //////////
     fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
+        var ox: i32 = x;
+        var oy: i32 = y;
         for (str) |char, n| {
+            if (char == '\n') {
+                ox = x;
+                oy += 32;
+                continue;
+            }
+
             const cx = @intCast(i32, char % 16) * 32;
             const cy = @intCast(i32, char / 16) * 32;
             const srcRect = c.SDL_Rect{
@@ -299,12 +313,13 @@ pub const Context = struct {
                 .h = 32,
             };
             const dstRect = c.SDL_Rect{
-                .x = x + @intCast(i32, n * 18),
-                .y = y,
+                .x = ox,
+                .y = oy,
                 .w = 32,
                 .h = 32,
             };
             _ = c.SDL_RenderCopy(self.render, self.font, &srcRect, &dstRect);
+            ox += 18;
         }
     }
 
@@ -331,17 +346,7 @@ pub const Context = struct {
 
             self.clear();
             self.draw_all();
-            { // render progress counter
-                const lp = self.save.progress % self.width;
-                const hp = self.save.progress / self.width;
-                const cp = std.math.min(lp, self.last_color_change());
-                if (progressCounter.writer().print("T{:.>6}/{:.>6} Y{} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), hp, lp, cp })) {
-                    self.print_slice(progressCounter.items, 0, 0);
-                } else |err| {
-                    std.log.warn("Progress counter errored with: {}", .{err});
-                }
-                progressCounter.shrink(0);
-            }
+            self.render_progress(&progressCounter);
             self.swap();
 
             // frame limit with SDL_Delay
@@ -384,5 +389,37 @@ pub const Context = struct {
             while (i + op < self.max() and std.mem.eql(u8, start, self.pixel_at_index(op + i))) : (i += 1) {}
             return i - 1;
         }
+    }
+
+    fn render_progress(self: *Context, progressCounter: *std.ArrayList(u8)) void {
+        const lp = self.save.progress % self.width;
+        const hp = self.save.progress / self.width;
+        const cp = std.math.min(lp, self.last_color_change());
+        if (self.expandedView) {
+            const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
+            if (progressCounter.writer().print(
+                \\Total: {:.>6}/{:.>6} {d: >3.1}%
+                \\Lines: {}
+                \\Since line: {:.>5}
+                \\Since Color: {:.>4}
+                \\===
+                \\Panning: WASD
+                \\Zoom: QE
+                \\Add Stitch ..10/1: V/C
+                \\Remov Stitch 10/1: Z/X
+                \\Toggle Help: ?
+            , .{ self.save.progress, self.max(), percent, hp, lp, cp })) {
+                self.print_slice(progressCounter.items, 10, 0);
+            } else |err| {
+                std.log.warn("Progress counter errored with: {}", .{err});
+            }
+        } else {
+            if (progressCounter.writer().print("T{:.>6}/{:.>6} Y{} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), hp, lp, cp })) {
+                self.print_slice(progressCounter.items, 0, 0);
+            } else |err| {
+                std.log.warn("Progress counter errored with: {}", .{err});
+            }
+        }
+        progressCounter.shrink(0);
     }
 };

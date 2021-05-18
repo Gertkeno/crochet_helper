@@ -16,7 +16,7 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(mode);
 
     exe.linkLibC();
-    if (target.os_tag != null and target.os_tag.? == .windows) {
+    if (target.toTarget().os.tag == .windows) {
         const wsdl2 = "SDL2-2.0.14/x86_64-w64-mingw32/";
         exe.addIncludeDir(wsdl2 ++ "include");
 
