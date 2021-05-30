@@ -255,7 +255,9 @@ pub const Context = struct {
             _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
             var i: i32 = 0;
             while (i < HintDotsWidth) : (i += 1) {
-                _ = c.SDL_RenderDrawPoint(self.render, ox + (i * self.offset.z) + @divTrunc(self.offset.z, 2), oy);
+                const hintX = ox + (i * self.offset.z) + @divTrunc(self.offset.z, 2);
+                self.set_inverse_color(x + @intCast(usize, i), y);
+                _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
             }
         } else {
             // right to left
@@ -266,7 +268,9 @@ pub const Context = struct {
             _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
             var i: i32 = 0;
             while (i < HintDotsWidth) : (i += 1) {
-                _ = c.SDL_RenderDrawPoint(self.render, ox - (i * self.offset.z) - @divTrunc(self.offset.z, 2), oy);
+                const hintX = ox - (i * self.offset.z) - @divTrunc(self.offset.z, 2);
+                self.set_inverse_color(self.width - x - @intCast(usize, i) - 1, y);
+                _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
             }
         }
     }
@@ -302,23 +306,23 @@ pub const Context = struct {
                 ox = x;
                 oy += 32;
                 continue;
+            } else if (std.ascii.isPrint(char)) {
+                const cx = @intCast(i32, char % 16) * 32;
+                const cy = @intCast(i32, char / 16) * 32;
+                const srcRect = c.SDL_Rect{
+                    .x = cx,
+                    .y = cy,
+                    .w = 32,
+                    .h = 32,
+                };
+                const dstRect = c.SDL_Rect{
+                    .x = ox,
+                    .y = oy,
+                    .w = 32,
+                    .h = 32,
+                };
+                _ = c.SDL_RenderCopy(self.render, self.font, &srcRect, &dstRect);
             }
-
-            const cx = @intCast(i32, char % 16) * 32;
-            const cy = @intCast(i32, char / 16) * 32;
-            const srcRect = c.SDL_Rect{
-                .x = cx,
-                .y = cy,
-                .w = 32,
-                .h = 32,
-            };
-            const dstRect = c.SDL_Rect{
-                .x = ox,
-                .y = oy,
-                .w = 32,
-                .h = 32,
-            };
-            _ = c.SDL_RenderCopy(self.render, self.font, &srcRect, &dstRect);
             ox += 18;
         }
     }
@@ -414,7 +418,7 @@ pub const Context = struct {
                 std.log.warn("Progress counter errored with: {}", .{err});
             }
         } else {
-            if (progressCounter.writer().print("T{:.>6}/{:.>6} Y{} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), hp, lp, cp })) {
+            if (progressCounter.writer().print("T{:.>6}/{:.>6} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), lp, cp })) {
                 self.print_slice(progressCounter.items, 0, 0);
             } else |err| {
                 std.log.warn("Progress counter errored with: {}", .{err});
