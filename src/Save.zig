@@ -4,20 +4,8 @@ pub const Save = struct {
     progress: usize,
     file: []const u8,
 
-    fn open_maybe(str: []const u8) !?std.fs.File {
-        if (std.fs.cwd().openFile(str, .{})) |imgfile| {
-            return imgfile;
-        } else |err| {
-            if (err == error.FileNotFound) {
-                return null;
-            } else {
-                return err;
-            }
-        }
-    }
-
     pub fn open(str: []const u8) !Save {
-        if (try open_maybe(str)) |imgfile| {
+        if (std.fs.cwd().openFile(str, .{})) |imgfile| {
             defer imgfile.close();
             const reader = imgfile.reader();
             const savedprogress = try reader.readIntNative(usize);
@@ -26,11 +14,15 @@ pub const Save = struct {
                 .progress = savedprogress,
                 .file = str,
             };
-        } else {
-            return Save{
-                .progress = 0,
-                .file = str,
-            };
+        } else |err| {
+            if (err == error.FileNotFound) {
+                return Save{
+                    .progress = 0,
+                    .file = str,
+                };
+            } else {
+                return err;
+            }
         }
     }
 
