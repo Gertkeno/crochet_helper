@@ -45,6 +45,7 @@ pub const Context = struct {
     // left, right, up, down
     scrolling: u4 = 0,
     expandedView: bool = true,
+    progressCounter: std.ArrayList(u8),
 
     const HintDotsWidth = 10;
     const FrameRate = 24;
@@ -129,12 +130,14 @@ pub const Context = struct {
             .stride = stride,
 
             .expandedView = imgSave.progress == 0,
+            .progressCounter = std.ArrayList(u8).init(allocator),
 
             .running = true,
         };
     }
 
     pub fn deinit(self: Context) void {
+        self.progressCounter.deinit();
         self.save.write() catch |err| {
             std.log.err("Error saving: {}", .{err});
             std.log.err("here's your progress number: {}", .{self.save.progress});
@@ -163,6 +166,7 @@ pub const Context = struct {
                 },
                 c.SDLK_SLASH => {
                     self.expandedView = !self.expandedView;
+                    self.write_progress();
                 },
                 else => {},
             }
@@ -177,15 +181,20 @@ pub const Context = struct {
                 c.SDLK_F2 => if (std.builtin.mode == .Debug) -999999 else 0,
                 else => 0,
             };
-            self.save.increment(incval);
-            if (self.save.progress > self.max()) {
-                self.save.progress = self.max();
-            }
 
-            self.save.write() catch |err| {
-                std.log.warn("Failed to save progress cause: {}", .{err});
-                std.log.warn("You may want this number: {}", .{self.save.progress});
-            };
+            if (incval != 0) {
+                self.save.increment(incval);
+                if (self.save.progress > self.max()) {
+                    self.save.progress = self.max();
+                }
+
+                self.save.write() catch |err| {
+                    std.log.warn("Failed to save progress cause: {}", .{err});
+                    std.log.warn("You may want this number: {}", .{self.save.progress});
+                };
+
+                self.write_progress();
+            }
         }
 
         // movement mask
@@ -330,10 +339,8 @@ pub const Context = struct {
     ///////////////
     // MAIN LOOP //
     ///////////////
-    pub fn main_loop(self: *Context, allocator: *std.mem.Allocator) void {
-        var progressCounter = std.ArrayList(u8).init(allocator);
-        defer progressCounter.deinit();
-
+    pub fn main_loop(self: *Context) void {
+        self.write_progress();
         while (self.running) {
             const frameStart = std.time.milliTimestamp();
             self.handle_events();
@@ -350,7 +357,7 @@ pub const Context = struct {
 
             self.clear();
             self.draw_all();
-            self.render_progress(&progressCounter);
+            self.print_slice(self.progressCounter.items, 10, 0);
             self.swap();
 
             // frame limit with SDL_Delay
@@ -395,13 +402,14 @@ pub const Context = struct {
         }
     }
 
-    fn render_progress(self: *Context, progressCounter: *std.ArrayList(u8)) void {
+    fn write_progress(self: *Context) void {
+        self.progressCounter.shrink(0);
         const lp = self.save.progress % self.width;
         const hp = self.save.progress / self.width;
         const cp = std.math.min(lp, self.last_color_change());
         if (self.expandedView) {
             const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
-            if (progressCounter.writer().print(
+            self.progressCounter.writer().print(
                 \\Total: {:.>6}/{:.>6} {d: >3.1}%
                 \\Lines: {}
                 \\Since line: {:.>5}
@@ -412,18 +420,11 @@ pub const Context = struct {
                 \\Add Stitch ..10/1: V/C
                 \\Remov Stitch 10/1: Z/X
                 \\Toggle Help: ?
-            , .{ self.save.progress, self.max(), percent, hp, lp, cp })) {
-                self.print_slice(progressCounter.items, 10, 0);
-            } else |err| {
-                std.log.warn("Progress counter errored with: {}", .{err});
-            }
+            , .{ self.save.progress, self.max(), percent, hp, lp, cp }) catch
+            |err| std.log.warn("Progress counter errored with: {}", .{err});
         } else {
-            if (progressCounter.writer().print("T{:.>6}/{:.>6} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), lp, cp })) {
-                self.print_slice(progressCounter.items, 0, 0);
-            } else |err| {
-                std.log.warn("Progress counter errored with: {}", .{err});
-            }
+            self.progressCounter.writer().print("T{:.>6}/{:.>6} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), lp, cp }) catch
+            |err| std.log.warn("Progress counter errored with: {}", .{err});
         }
-        progressCounter.shrink(0);
     }
 };

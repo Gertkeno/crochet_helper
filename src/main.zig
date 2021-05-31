@@ -33,7 +33,7 @@ pub fn main() anyerror!void {
         var ctx = try sdl.Context.init(img, allocator);
         defer ctx.deinit();
 
-        ctx.main_loop(allocator);
+        ctx.main_loop();
     } else {
         std.log.err("No file specified!", .{});
         std.log.notice(
