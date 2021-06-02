@@ -262,10 +262,10 @@ pub const Context = struct {
             _ = c.SDL_RenderDrawLine(self.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
 
             _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
-            var i: i32 = 0;
-            while (i < HintDotsWidth) : (i += 1) {
-                const hintX = ox + (i * self.offset.z) + @divTrunc(self.offset.z, 2);
-                self.set_inverse_color(x + @intCast(usize, i), y);
+            var i: u32 = 0;
+            while (i < HintDotsWidth and x + i < self.width) : (i += 1) {
+                const hintX = ox + (@intCast(i32, i) * self.offset.z) + @divTrunc(self.offset.z, 2);
+                self.set_inverse_color(x + i, y);
                 _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
             }
         } else {
@@ -275,10 +275,10 @@ pub const Context = struct {
             _ = c.SDL_RenderDrawLine(self.render, ow, oy, ox, oy);
 
             _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
-            var i: i32 = 0;
-            while (i < HintDotsWidth) : (i += 1) {
-                const hintX = ox - (i * self.offset.z) - @divTrunc(self.offset.z, 2);
-                self.set_inverse_color(self.width - x - @intCast(usize, i) - 1, y);
+            var i: u32 = 0;
+            while (i < HintDotsWidth and x + i < self.width) : (i += 1) {
+                const hintX = ox - (@intCast(i32, i) * self.offset.z) - @divTrunc(self.offset.z, 2);
+                self.set_inverse_color(self.width - x - i - 1, y);
                 _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
             }
         }
