@@ -30,7 +30,7 @@ pub fn main() anyerror!void {
 
     if (imgFilename) |img| {
         defer allocator.free(img);
-        var ctx = try sdl.Context.init(img, allocator);
+        var ctx = try sdl.Instance.init(img, allocator);
         defer ctx.deinit();
 
         ctx.main_loop();

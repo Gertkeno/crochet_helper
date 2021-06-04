@@ -1,26 +1,15 @@
 const std = @import("std");
-pub const c = @cImport({
-    @cInclude("SDL2/SDL.h");
-    @cInclude("SDL2/SDL_image.h");
-});
+const c = @import("c.zig");
 
 usingnamespace @import("Save.zig");
-const font_franklin = @embedFile("franklin.bmp");
+usingnamespace @import("Context.zig");
 
-pub const ContextError = error{
-    InitError,
-    WindowError,
-    RendererError,
-    TextureError,
-};
-
-pub const Context = struct {
+pub const Instance = struct {
     //////////
     // context
     //////////
     allocator: *std.mem.Allocator,
-    window: *c.SDL_Window,
-    render: *c.SDL_Renderer,
+    context: Context,
     running: bool,
 
     //////////
@@ -28,7 +17,6 @@ pub const Context = struct {
     //////////
     save: Save,
     texture: *c.SDL_Texture,
-    font: *c.SDL_Texture,
     pixels: []const u8,
     stride: u8,
     width: usize,
@@ -54,29 +42,9 @@ pub const Context = struct {
     //////////
     // INIT //
     //////////
-    pub fn init(filename: []const u8, allocator: *std.mem.Allocator) !Context {
-        // SDL2 init
-        if (c.SDL_Init(c.SDL_INIT_EVENTS) != 0) {
-            std.log.err("Failed to init SDL2: {s}", .{c.SDL_GetError()});
-            return ContextError.InitError;
-        }
-        _ = c.IMG_Init(c.IMG_INIT_JPG | c.IMG_INIT_PNG);
-
-        const wflags = c.SDL_WINDOW_RESIZABLE;
-        const pos = c.SDL_WINDOWPOS_CENTERED;
-        const window = c.SDL_CreateWindow("gert's crochet helper", pos, pos, 800, 600, wflags) orelse {
-            std.log.err("Failed to create Window: {s}", .{c.SDL_GetError()});
-            return ContextError.WindowError;
-        };
-        errdefer c.SDL_DestroyWindow(window);
-
-        const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse
-            c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_SOFTWARE) orelse
-            {
-            std.log.err("Failed to create renderer: {s}", .{c.SDL_GetError()});
-            return ContextError.RendererError;
-        };
-        errdefer c.SDL_DestroyRenderer(renderer);
+    pub fn init(filename: []const u8, allocator: *std.mem.Allocator) !Instance {
+        const ctx = try Context.init();
+        errdefer ctx.deinit();
 
         // image loading
         const cfn = try std.cstr.addNullByte(allocator, filename);
@@ -92,22 +60,11 @@ pub const Context = struct {
         const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, tsurf.w * tsurf.h * @intCast(c_int, stride))]);
         errdefer allocator.free(pixels);
 
-        const ttexture = c.SDL_CreateTextureFromSurface(renderer, tsurf) orelse {
+        const texture = c.SDL_CreateTextureFromSurface(ctx.render, tsurf) orelse {
             std.log.err("Failed to create texture for image: {s}", .{c.SDL_GetError()});
             return ContextError.TextureError;
         };
-        errdefer c.SDL_DestroyTexture(ttexture);
-
-        const fsurf: *c.SDL_Surface = c.SDL_LoadBMP_RW(c.SDL_RWFromConstMem(font_franklin, font_franklin.len), 1) orelse {
-            std.log.err("Failed to create font surface from interal image: {s}", .{c.SDL_GetError()});
-            return ContextError.TextureError;
-        };
-        defer c.SDL_FreeSurface(fsurf);
-        _ = c.SDL_SetColorKey(fsurf, c.SDL_TRUE, c.SDL_MapRGB(fsurf.format, 0xFF, 0, 0xFF));
-        const ftexture = c.SDL_CreateTextureFromSurface(renderer, fsurf) orelse {
-            std.log.err("Failed to create font from internal image: {s}", .{c.SDL_GetError()});
-            return ContextError.TextureError;
-        };
+        errdefer c.SDL_DestroyTexture(texture);
 
         // Save reading
         const a = [_][]const u8{ filename, ".save" };
@@ -115,17 +72,15 @@ pub const Context = struct {
         errdefer allocator.free(imgSaveFilename);
         const imgSave = try Save.open(imgSaveFilename);
 
-        return Context{
+        return Instance{
             .allocator = allocator,
 
-            .window = window,
-            .render = renderer,
+            .context = ctx,
 
             .save = imgSave,
             .width = @intCast(usize, tsurf.w),
             .height = @intCast(usize, tsurf.h),
-            .texture = ttexture,
-            .font = ftexture,
+            .texture = texture,
             .pixels = pixels,
             .stride = stride,
 
@@ -136,7 +91,7 @@ pub const Context = struct {
         };
     }
 
-    pub fn deinit(self: Context) void {
+    pub fn deinit(self: Instance) void {
         self.progressCounter.deinit();
         self.save.write() catch |err| {
             std.log.err("Error saving: {}", .{err});
@@ -144,16 +99,13 @@ pub const Context = struct {
         };
         self.allocator.free(self.save.file);
         self.allocator.free(self.pixels);
-        c.SDL_DestroyRenderer(self.render);
-        c.SDL_DestroyWindow(self.window);
-        c.IMG_Quit();
-        c.SDL_Quit();
+        self.context.deinit();
     }
 
     ////////////
     // EVENTS //
     ////////////
-    fn handle_key(self: *Context, eventkey: c_int, up: bool) void {
+    fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
         // singular presses
         if (!up) {
             // zoom in/out
@@ -213,7 +165,7 @@ pub const Context = struct {
         }
     }
 
-    fn handle_events(self: *Context) void {
+    fn handle_events(self: *Instance) void {
         var e: c.SDL_Event = undefined;
         while (c.SDL_PollEvent(&e) == 1) {
             if (e.type == c.SDL_KEYDOWN or e.type == c.SDL_KEYUP) {
@@ -227,7 +179,7 @@ pub const Context = struct {
     /////////////
     // DRAWING //
     /////////////
-    fn draw_all(self: Context) void {
+    fn draw_all(self: Instance) void {
         // draw texture
         const drawRect = c.SDL_Rect{
             .x = @floatToInt(i32, self.offset.x),
@@ -235,111 +187,79 @@ pub const Context = struct {
             .w = @intCast(i32, self.width) * self.offset.z,
             .h = @intCast(i32, self.height) * self.offset.z,
         };
-        if (c.SDL_RenderCopy(self.render, self.texture, null, &drawRect) != 0) {
+        if (c.SDL_RenderCopy(self.context.render, self.texture, null, &drawRect) != 0) {
             std.log.notice("Failed to render to screen", .{});
         }
 
         // draw fully complete lines
-        _ = c.SDL_SetRenderDrawColor(self.render, 0xFF, 0, 0, 0xFF);
+        self.context.set_color(0xFF, 0, 0);
         var fullLines: usize = self.save.progress / self.width;
         while (fullLines > 0) : (fullLines -= 1) {
             const x = @floatToInt(c_int, self.offset.x);
             const y = @floatToInt(c_int, self.offset.y) + @intCast(c_int, fullLines) * self.offset.z - @divTrunc(self.offset.z, 2);
             const maxX = @intCast(c_int, self.width) * self.offset.z;
-            if (c.SDL_RenderDrawLine(self.render, x, y, x + maxX, y) != 0) {
+            if (c.SDL_RenderDrawLine(self.context.render, x, y, x + maxX, y) != 0) {
                 std.log.notice("Drawing line at {} failed: {s}", .{ fullLines, c.SDL_GetError() });
             }
         }
 
         // draw progress
-        _ = c.SDL_SetRenderDrawColor(self.render, 0xFF, 0, 0x7F, 0xFF);
+        self.context.set_color(0xFF, 0, 0x7F);
         const y = self.save.progress / self.width;
         const x = self.save.progress % self.width;
         const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z + @divTrunc(self.offset.z, 2);
         if (y & 1 == 0) {
             // left to right
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
-            _ = c.SDL_RenderDrawLine(self.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
+            _ = c.SDL_RenderDrawLine(self.context.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
 
-            _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
+            self.context.set_color(0, 0xFF, 0);
             var i: u32 = 0;
             while (i < HintDotsWidth and x + i < self.width) : (i += 1) {
                 const hintX = ox + (@intCast(i32, i) * self.offset.z) + @divTrunc(self.offset.z, 2);
                 self.set_inverse_color(x + i, y);
-                _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
+                _ = c.SDL_RenderDrawPoint(self.context.render, hintX, oy);
             }
         } else {
             // right to left
             const ow = @floatToInt(c_int, self.offset.x) + @intCast(c_int, self.width) * self.offset.z;
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, self.width - x) * self.offset.z;
-            _ = c.SDL_RenderDrawLine(self.render, ow, oy, ox, oy);
+            _ = c.SDL_RenderDrawLine(self.context.render, ow, oy, ox, oy);
 
-            _ = c.SDL_SetRenderDrawColor(self.render, 0, 0xFF, 0, 0xFF);
+            self.context.set_color(0, 0xFF, 0);
             var i: u32 = 0;
             while (i < HintDotsWidth and x + i < self.width) : (i += 1) {
                 const hintX = ox - (@intCast(i32, i) * self.offset.z) - @divTrunc(self.offset.z, 2);
                 self.set_inverse_color(self.width - x - i - 1, y);
-                _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
+                _ = c.SDL_RenderDrawPoint(self.context.render, hintX, oy);
             }
         }
     }
 
-    fn set_inverse_color(self: Context, x: usize, y: usize) void {
+    fn set_inverse_color(self: Instance, x: usize, y: usize) void {
         const pos = (x + y * self.width) * self.stride;
         const pixel = self.pixels[pos .. pos + 3];
         const r = 255 - pixel[0];
         const g = 255 - pixel[1];
         const b = 255 - pixel[2];
-        _ = c.SDL_SetRenderDrawColor(self.render, r, g, b, 0xFF);
+        self.context.set_color(r, g, b);
     }
 
-    fn clear(self: Context) void {
-        _ = c.SDL_SetRenderDrawColor(self.render, 0, 0, 0, 0xFF);
-        if (c.SDL_RenderClear(self.render) != 0) {
+    fn clear(self: Instance) void {
+        self.context.set_color(0, 0, 0);
+        if (c.SDL_RenderClear(self.context.render) != 0) {
             std.log.notice("Failed to clear renderer: {s}", .{c.SDL_GetError()});
         }
     }
 
-    fn swap(self: Context) void {
-        c.SDL_RenderPresent(self.render);
-    }
-
-    //////////
-    // FONT //
-    //////////
-    fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
-        var ox: i32 = x;
-        var oy: i32 = y;
-        for (str) |char, n| {
-            if (char == '\n') {
-                ox = x;
-                oy += 32;
-                continue;
-            } else if (std.ascii.isPrint(char)) {
-                const cx = @intCast(i32, char % 16) * 32;
-                const cy = @intCast(i32, char / 16) * 32;
-                const srcRect = c.SDL_Rect{
-                    .x = cx,
-                    .y = cy,
-                    .w = 32,
-                    .h = 32,
-                };
-                const dstRect = c.SDL_Rect{
-                    .x = ox,
-                    .y = oy,
-                    .w = 32,
-                    .h = 32,
-                };
-                _ = c.SDL_RenderCopy(self.render, self.font, &srcRect, &dstRect);
-            }
-            ox += 18;
-        }
+    fn swap(self: Instance) void {
+        c.SDL_RenderPresent(self.context.render);
     }
 
     ///////////////
     // MAIN LOOP //
     ///////////////
-    pub fn main_loop(self: *Context) void {
+    pub fn main_loop(self: *Instance) void {
         self.write_progress();
         while (self.running) {
             const frameStart = std.time.milliTimestamp();
@@ -357,7 +277,7 @@ pub const Context = struct {
 
             self.clear();
             self.draw_all();
-            self.print_slice(self.progressCounter.items, 10, 0);
+            self.context.print_slice(self.progressCounter.items, 10, 0);
             self.swap();
 
             // frame limit with SDL_Delay
@@ -371,16 +291,16 @@ pub const Context = struct {
     //////////////////////
     // PROGRESS READERS //
     //////////////////////
-    fn max(self: Context) usize {
+    fn max(self: Instance) usize {
         return self.width * self.height;
     }
 
-    fn pixel_at_index(self: Context, i: usize) []const u8 {
+    fn pixel_at_index(self: Instance, i: usize) []const u8 {
         const is = i * self.stride;
         return self.pixels[is .. is + 3];
     }
 
-    fn last_color_change(self: Context) usize {
+    fn last_color_change(self: Instance) usize {
         const p = self.save.progress;
         if (p == self.max()) {
             return 0;
@@ -402,7 +322,7 @@ pub const Context = struct {
         }
     }
 
-    fn write_progress(self: *Context) void {
+    fn write_progress(self: *Instance) void {
         self.progressCounter.shrink(0);
         const lp = self.save.progress % self.width;
         const hp = self.save.progress / self.width;
