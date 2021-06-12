@@ -20,7 +20,7 @@ pub fn main() anyerror!void {
             return;
         } else {
             if (imgFilename != null) {
-                std.log.warn("a file has already been read, ignoring \"{}\"", .{arg});
+                std.log.warn("a file has already been read, ignoring \"{s}\"", .{arg});
                 continue;
             }
 

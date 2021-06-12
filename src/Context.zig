@@ -102,4 +102,19 @@ pub const Context = struct {
     pub fn set_scale(self: Context, x: i32, y: i32) void {
         _ = c.SDL_RenderSetScale(self.render, @intToFloat(f32, x), @intToFloat(f32, y));
     }
+
+    pub fn draw_line(self: Context, x1: c_int, y1: c_int, x2: c_int) void {
+        _ = c.SDL_RenderDrawLine(self.render, x1, y1, x2, y1);
+    }
+
+    pub fn clear(self: Context) void {
+        self.set_color(0, 0, 0);
+        if (c.SDL_RenderClear(self.render) != 0) {
+            std.log.notice("Failed to clear renderer: {s}", .{c.SDL_GetError()});
+        }
+    }
+
+    pub fn swap(self: Context) void {
+        c.SDL_RenderPresent(self.render);
+    }
 };

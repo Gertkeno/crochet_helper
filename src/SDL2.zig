@@ -94,8 +94,8 @@ pub const Instance = struct {
     pub fn deinit(self: Instance) void {
         self.progressCounter.deinit();
         self.save.write() catch |err| {
-            std.log.err("Error saving: {}", .{err});
-            std.log.err("here's your progress number: {}", .{self.save.progress});
+            std.log.err("Error saving: {any}", .{err});
+            std.log.err("here's your progress number: {d}", .{self.save.progress});
         };
         self.allocator.free(self.save.file);
         self.allocator.free(self.pixels);
@@ -141,8 +141,8 @@ pub const Instance = struct {
                 }
 
                 self.save.write() catch |err| {
-                    std.log.warn("Failed to save progress cause: {}", .{err});
-                    std.log.warn("You may want this number: {}", .{self.save.progress});
+                    std.log.warn("Failed to save progress cause: {any}", .{err});
+                    std.log.warn("You may want this number: {d}", .{self.save.progress});
                 };
 
                 self.write_progress();
@@ -198,9 +198,7 @@ pub const Instance = struct {
             const x = @floatToInt(c_int, self.offset.x);
             const y = @floatToInt(c_int, self.offset.y) + @intCast(c_int, fullLines) * self.offset.z - @divTrunc(self.offset.z, 2);
             const maxX = @intCast(c_int, self.width) * self.offset.z;
-            if (c.SDL_RenderDrawLine(self.context.render, x, y, x + maxX, y) != 0) {
-                std.log.notice("Drawing line at {} failed: {s}", .{ fullLines, c.SDL_GetError() });
-            }
+            self.context.draw_line(x, y, x + maxX);
         }
 
         // draw progress
@@ -211,7 +209,7 @@ pub const Instance = struct {
         if (y & 1 == 0) {
             // left to right
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
-            _ = c.SDL_RenderDrawLine(self.context.render, @floatToInt(c_int, self.offset.x), oy, ox, oy);
+            self.context.draw_line(@floatToInt(c_int, self.offset.x), oy, ox);
 
             self.context.set_color(0, 0xFF, 0);
             var i: u32 = 0;
@@ -224,7 +222,7 @@ pub const Instance = struct {
             // right to left
             const ow = @floatToInt(c_int, self.offset.x) + @intCast(c_int, self.width) * self.offset.z;
             const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, self.width - x) * self.offset.z;
-            _ = c.SDL_RenderDrawLine(self.context.render, ow, oy, ox, oy);
+            self.context.draw_line(ow, oy, ox);
 
             self.context.set_color(0, 0xFF, 0);
             var i: u32 = 0;
@@ -243,17 +241,6 @@ pub const Instance = struct {
         const g = 255 - pixel[1];
         const b = 255 - pixel[2];
         self.context.set_color(r, g, b);
-    }
-
-    fn clear(self: Instance) void {
-        self.context.set_color(0, 0, 0);
-        if (c.SDL_RenderClear(self.context.render) != 0) {
-            std.log.notice("Failed to clear renderer: {s}", .{c.SDL_GetError()});
-        }
-    }
-
-    fn swap(self: Instance) void {
-        c.SDL_RenderPresent(self.context.render);
     }
 
     ///////////////
@@ -275,10 +262,10 @@ pub const Instance = struct {
                 self.offset.y += 10;
             }
 
-            self.clear();
+            self.context.clear();
             self.draw_all();
             self.context.print_slice(self.progressCounter.items, 10, 0);
-            self.swap();
+            self.context.swap();
 
             // frame limit with SDL_Delay
             const frameTime = std.time.milliTimestamp() - frameStart;
@@ -323,7 +310,7 @@ pub const Instance = struct {
     }
 
     fn write_progress(self: *Instance) void {
-        self.progressCounter.shrink(0);
+        self.progressCounter.shrinkAndFree(0);
         const lp = self.save.progress % self.width;
         const hp = self.save.progress / self.width;
         const cp = std.math.min(lp, self.last_color_change());
@@ -331,7 +318,7 @@ pub const Instance = struct {
             const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
             self.progressCounter.writer().print(
                 \\Total: {:.>6}/{:.>6} {d: >3.1}%
-                \\Lines: {}
+                \\Lines: {d}
                 \\Since line: {:.>5}
                 \\Since Color: {:.>4}
                 \\===
@@ -340,11 +327,11 @@ pub const Instance = struct {
                 \\Add Stitch ..10/1: V/C
                 \\Remov Stitch 10/1: Z/X
                 \\Toggle Help: ?
-            , .{ self.save.progress, self.max(), percent, hp, lp, cp }) catch
-            |err| std.log.warn("Progress counter errored with: {}", .{err});
+            , .{ self.save.progress, self.max(), percent, hp, lp, cp }) catch |err|
+                std.log.warn("Progress counter errored with: {any}", .{err});
         } else {
-            self.progressCounter.writer().print("T{:.>6}/{:.>6} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), lp, cp }) catch
-            |err| std.log.warn("Progress counter errored with: {}", .{err});
+            self.progressCounter.writer().print("T{:.>6}/{:.>6} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), lp, cp }) catch |err|
+                std.log.warn("Progress counter errored with: {any}", .{err});
         }
     }
 };
