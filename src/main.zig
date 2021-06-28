@@ -1,5 +1,5 @@
 const std = @import("std");
-const sdl = @import("SDL2.zig");
+usingnamespace @import("Instance.zig");
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -30,7 +30,7 @@ pub fn main() anyerror!void {
 
     if (imgFilename) |img| {
         defer allocator.free(img);
-        var ctx = try sdl.Instance.init(img, allocator);
+        var ctx = try Instance.init(img, allocator);
         defer ctx.deinit();
 
         ctx.main_loop();
