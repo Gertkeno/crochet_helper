@@ -1,5 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig");
+usingnamespace @import("Texture.zig");
 
 const font_franklin = @embedFile("franklin.bmp");
 
@@ -14,6 +15,13 @@ pub const Context = struct {
     window: *c.SDL_Window,
     render: *c.SDL_Renderer,
     font: *c.SDL_Texture,
+    offset: struct {
+        x: f32 = 0,
+        y: f32 = 0,
+        z: i32 = 8,
+    } = .{},
+
+    const HintDotsCount = 10;
 
     pub fn init() !Context {
         // SDL2 init
@@ -99,10 +107,6 @@ pub const Context = struct {
         _ = c.SDL_SetRenderDrawColor(self.render, r, g, b, 0xFF);
     }
 
-    pub fn set_scale(self: Context, x: i32, y: i32) void {
-        _ = c.SDL_RenderSetScale(self.render, @intToFloat(f32, x), @intToFloat(f32, y));
-    }
-
     pub fn draw_line(self: Context, x1: c_int, y1: c_int, x2: c_int) void {
         _ = c.SDL_RenderDrawLine(self.render, x1, y1, x2, y1);
     }
@@ -116,5 +120,69 @@ pub const Context = struct {
 
     pub fn swap(self: Context) void {
         c.SDL_RenderPresent(self.render);
+    }
+
+    fn set_inverse_color(self: Context, texture: Texture, x: usize, y: usize) void {
+        const pos = x + y * texture.width;
+        const pixel = texture.pixel_at_index(pos);
+        const r = 255 - pixel[0];
+        const g = 255 - pixel[1];
+        const b = 255 - pixel[2];
+        self.set_color(r, g, b);
+    }
+
+    pub fn draw_all(self: Context, texture: Texture, progress: usize) void {
+        // draw texture
+        const drawRect = c.SDL_Rect{
+            .x = @floatToInt(i32, self.offset.x),
+            .y = @floatToInt(i32, self.offset.y),
+            .w = @intCast(i32, texture.width) * self.offset.z,
+            .h = @intCast(i32, texture.height) * self.offset.z,
+        };
+        if (c.SDL_RenderCopy(self.render, texture.handle, null, &drawRect) != 0) {
+            std.log.notice("Failed to render to screen", .{});
+        }
+
+        // draw fully complete lines
+        self.set_color(0xFF, 0, 0);
+        var fullLines: usize = progress / texture.width;
+        while (fullLines > 0) : (fullLines -= 1) {
+            const x = @floatToInt(c_int, self.offset.x);
+            const y = @floatToInt(c_int, self.offset.y) + @intCast(c_int, fullLines) * self.offset.z - @divTrunc(self.offset.z, 2);
+            const maxX = @intCast(c_int, texture.width) * self.offset.z;
+            self.draw_line(x, y, x + maxX);
+        }
+
+        // draw progress
+        self.set_color(0xFF, 0, 0x7F);
+        const y = progress / texture.width;
+        const x = progress % texture.width;
+        const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z + @divTrunc(self.offset.z, 2);
+        if (y & 1 == 0) {
+            // left to right
+            const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
+            self.draw_line(@floatToInt(c_int, self.offset.x), oy, ox);
+
+            self.set_color(0, 0xFF, 0);
+            var i: u32 = 0;
+            while (i < HintDotsCount and x + i < texture.width) : (i += 1) {
+                const hintX = ox + (@intCast(i32, i) * self.offset.z) + @divTrunc(self.offset.z, 2);
+                self.set_inverse_color(texture, x + i, y);
+                _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
+            }
+        } else {
+            // right to left
+            const ow = @floatToInt(c_int, self.offset.x) + @intCast(c_int, texture.width) * self.offset.z;
+            const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, texture.width - x) * self.offset.z;
+            self.draw_line(ow, oy, ox);
+
+            self.set_color(0, 0xFF, 0);
+            var i: u32 = 0;
+            while (i < HintDotsCount and x + i < texture.width) : (i += 1) {
+                const hintX = ox - (@intCast(i32, i) * self.offset.z) - @divTrunc(self.offset.z, 2);
+                self.set_inverse_color(texture, texture.width - x - i - 1, y);
+                _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
+            }
+        }
     }
 };
