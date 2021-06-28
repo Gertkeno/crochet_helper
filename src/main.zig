@@ -1,12 +1,13 @@
 const std = @import("std");
 usingnamespace @import("Instance.zig");
+usingnamespace @import("Context.zig");
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = &gpa.allocator;
 
-    var imgFilename: ?[]const u8 = null;
+    var imgFilename: ?[:0]const u8 = null;
 
     var args = std.process.args();
     _ = args.skip();
@@ -24,27 +25,28 @@ pub fn main() anyerror!void {
                 continue;
             }
 
-            imgFilename = try allocator.dupe(u8, arg);
+            imgFilename = try allocator.dupeZ(u8, arg);
         }
     }
 
+    var ctx = try Context.init();
+    defer ctx.deinit();
+
     if (imgFilename) |img| {
         defer allocator.free(img);
-        var ctx = try Instance.init(img, allocator);
-        defer ctx.deinit();
 
-        ctx.main_loop();
+        var instance = try Instance.init(ctx, img, allocator);
+        defer instance.deinit();
+
+        instance.main_loop();
     } else {
-        std.log.err("No file specified!", .{});
-        std.log.notice(
-            \\Usage: crochet-helper FILE
-            \\only supports png files, produces FILE.save for storing progress
-            \\
-            \\Status bar info:
-            \\T total stitches made / total stitches in project
-            \\Y lines done
-            \\L stitches since last line
-            \\C stitches since last color change
-        , .{});
+        const filename = ctx.wait_for_file();
+
+        if (filename) |img| {
+            var instance = try Instance.init(ctx, img, allocator);
+            defer instance.deinit();
+
+            instance.main_loop();
+        }
     }
 }

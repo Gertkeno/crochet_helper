@@ -33,14 +33,9 @@ pub const Instance = struct {
     //////////
     // INIT //
     //////////
-    pub fn init(filename: []const u8, allocator: *std.mem.Allocator) !Instance {
-        const ctx = try Context.init();
-        errdefer ctx.deinit();
-
+    pub fn init(ctx: Context, filename: [:0]const u8, allocator: *std.mem.Allocator) !Instance {
         // image loading
-        const cfn = try std.cstr.addNullByte(allocator, filename);
-        defer allocator.free(cfn);
-        const texture = try Texture.load_file(cfn, ctx.render, allocator);
+        const texture = try Texture.load_file(filename, ctx.render, allocator);
 
         // Save reading
         const a = [_][]const u8{ filename, ".save" };
@@ -50,7 +45,6 @@ pub const Instance = struct {
 
         return Instance{
             .allocator = allocator,
-
             .context = ctx,
 
             .save = imgSave,
@@ -144,7 +138,7 @@ pub const Instance = struct {
                 self.handle_key(e.key.keysym.sym, e.type == c.SDL_KEYUP);
             } else if (e.type == c.SDL_QUIT) {
                 self.running = false;
-            }
+            } else {}
         }
     }
 

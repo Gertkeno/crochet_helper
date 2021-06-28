@@ -74,6 +74,9 @@ pub const Context = struct {
         c.SDL_Quit();
     }
 
+    //////////////////
+    // FONT DRAWING //
+    //////////////////
     pub fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
         var ox: i32 = x;
         var oy: i32 = y;
@@ -103,6 +106,9 @@ pub const Context = struct {
         }
     }
 
+    /////////////////////
+    // REGUALR DRAWING //
+    /////////////////////
     pub fn set_color(self: Context, r: u8, g: u8, b: u8) void {
         _ = c.SDL_SetRenderDrawColor(self.render, r, g, b, 0xFF);
     }
@@ -184,5 +190,32 @@ pub const Context = struct {
                 _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
             }
         }
+    }
+
+    ////////////////
+    // DROP EVENT //
+    ////////////////
+    pub fn wait_for_file(self: Context) ?[:0]const u8 {
+        var e: c.SDL_Event = undefined;
+
+        while (true) {
+            while (c.SDL_PollEvent(&e) == 1) {
+                if (e.type == c.SDL_DROPFILE) {
+                    const file = e.drop.file;
+                    return std.mem.span(e.drop.file);
+                } else if (e.type == c.SDL_DROPTEXT or e.type == c.SDL_DROPBEGIN) {
+                    _ = c.SDL_ShowSimpleMessageBox(c.SDL_MESSAGEBOX_ERROR, "Incompatable request", "The information sent to this application is not a local file", self.window);
+                } else if (e.type == c.SDL_QUIT) {
+                    return null;
+                }
+            }
+
+            self.clear();
+            self.print_slice("Please drag a image onto this window to open it", 120, 80);
+            self.swap();
+            c.SDL_Delay(33);
+        }
+
+        return null;
     }
 };
