@@ -35,7 +35,7 @@ pub const Context = struct {
 
         const wflags = c.SDL_WINDOW_RESIZABLE;
         const pos = c.SDL_WINDOWPOS_CENTERED;
-        const window = c.SDL_CreateWindow("gert's crochet helper", pos, pos, 800, 600, wflags) orelse {
+        const window = c.SDL_CreateWindow("gert's crochet helper", pos, pos, 1000, 600, wflags) orelse {
             std.log.err("Failed to create Window: {s}", .{c.SDL_GetError()});
             return ContextError.WindowError;
         };
@@ -204,18 +204,25 @@ pub const Context = struct {
                     const file = e.drop.file;
                     return std.mem.span(e.drop.file);
                 } else if (e.type == c.SDL_DROPTEXT or e.type == c.SDL_DROPBEGIN) {
-                    _ = c.SDL_ShowSimpleMessageBox(c.SDL_MESSAGEBOX_ERROR, "Incompatable request", "The information sent to this application is not a local file", self.window);
+                    self.error_box("Could not understand dropped item, try something else.");
                 } else if (e.type == c.SDL_QUIT) {
                     return null;
                 }
             }
 
             self.clear();
-            self.print_slice("Please drag a image onto this window to open it", 120, 80);
+            self.print_slice("Please drag a image onto this window to open it", 20, 80);
             self.swap();
             c.SDL_Delay(33);
         }
 
         return null;
+    }
+
+    pub fn error_box(self: Context, msg: [:0]const u8) void {
+        const err = c.SDL_ShowSimpleMessageBox(c.SDL_MESSAGEBOX_ERROR, "Error!", msg, self.window);
+        if (err != 0) {
+            std.log.err("Error creation failed!\nmsg: {s}\nSDL: {s}", .{ msg, c.SDL_GetError() });
+        }
     }
 };

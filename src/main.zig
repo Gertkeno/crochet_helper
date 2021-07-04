@@ -2,6 +2,29 @@ const std = @import("std");
 usingnamespace @import("Instance.zig");
 usingnamespace @import("Context.zig");
 
+fn drop_loop(ctx: Context, allocator: *std.mem.Allocator) ?Instance {
+    while (true) {
+        const filename = ctx.wait_for_file();
+
+        if (filename) |img| {
+            var instance = Instance.init(ctx, img, allocator) catch |err| {
+                const errstr = switch (err) {
+                    error.CreationFailure => "Probably a unsupported image format, try again with a JPEG or PNG",
+                    error.OutOfMemory => "Ran out of memory!",
+                    else => "Unkown error, check command prompt if available.",
+                };
+
+                ctx.error_box(errstr);
+                continue;
+            };
+
+            return instance;
+        } else {
+            return null;
+        }
+    }
+}
+
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -40,13 +63,9 @@ pub fn main() anyerror!void {
 
         instance.main_loop();
     } else {
-        const filename = ctx.wait_for_file();
+        var instance = drop_loop(ctx, allocator) orelse return;
+        defer instance.deinit();
 
-        if (filename) |img| {
-            var instance = try Instance.init(ctx, img, allocator);
-            defer instance.deinit();
-
-            instance.main_loop();
-        }
+        instance.main_loop();
     }
 }
