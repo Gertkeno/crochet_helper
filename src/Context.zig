@@ -203,8 +203,12 @@ pub const Context = struct {
                 if (e.type == c.SDL_DROPFILE) {
                     const file = e.drop.file;
                     return std.mem.span(e.drop.file);
-                } else if (e.type == c.SDL_DROPTEXT or e.type == c.SDL_DROPBEGIN) {
+                } else if (e.type == c.SDL_DROPTEXT) {
                     self.error_box("Could not understand dropped item, try something else.");
+                } else if (e.type == c.SDL_KEYDOWN) {
+                    if (e.key.keysym.sym == c.SDLK_F4 and @enumToInt(c.SDL_GetModState()) & c.KMOD_ALT != 0) {
+                        return null;
+                    }
                 } else if (e.type == c.SDL_QUIT) {
                     return null;
                 }
@@ -222,7 +226,7 @@ pub const Context = struct {
     pub fn error_box(self: Context, msg: [:0]const u8) void {
         const err = c.SDL_ShowSimpleMessageBox(c.SDL_MESSAGEBOX_ERROR, "Error!", msg, self.window);
         if (err != 0) {
-            std.log.err("Error creation failed!\nmsg: {s}\nSDL: {s}", .{ msg, c.SDL_GetError() });
+            std.log.err("Error creation failed! msg: \"{s}\" SDL: {s}", .{ msg, c.SDL_GetError() });
         }
     }
 };

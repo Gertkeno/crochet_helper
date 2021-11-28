@@ -7,7 +7,9 @@ fn drop_loop(ctx: Context, allocator: *std.mem.Allocator) ?Instance {
         const filename = ctx.wait_for_file();
 
         if (filename) |img| {
-            var instance = Instance.init(ctx, img, allocator) catch |err| {
+            if (Instance.init(ctx, img, allocator)) |instance| {
+                return instance;
+            } else |err| {
                 const errstr = switch (err) {
                     error.CreationFailure => "Probably a unsupported image format, try again with a JPEG or PNG",
                     error.OutOfMemory => "Ran out of memory!",
@@ -16,9 +18,7 @@ fn drop_loop(ctx: Context, allocator: *std.mem.Allocator) ?Instance {
 
                 ctx.error_box(errstr);
                 continue;
-            };
-
-            return instance;
+            }
         } else {
             return null;
         }
