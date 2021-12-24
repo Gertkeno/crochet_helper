@@ -1,8 +1,8 @@
 const std = @import("std");
-usingnamespace @import("Instance.zig");
-usingnamespace @import("Context.zig");
+const Instance = @import("Instance.zig");
+const Context = @import("Context.zig");
 
-fn drop_loop(ctx: Context, allocator: *std.mem.Allocator) ?Instance {
+fn drop_loop(ctx: Context, allocator: std.mem.Allocator) ?Instance {
     while (true) {
         const filename = ctx.wait_for_file();
 
@@ -28,7 +28,7 @@ fn drop_loop(ctx: Context, allocator: *std.mem.Allocator) ?Instance {
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    const allocator = &gpa.allocator;
+    const allocator = gpa.allocator();
 
     var imgFilename: ?[:0]const u8 = null;
 
