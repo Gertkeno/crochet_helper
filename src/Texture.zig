@@ -64,10 +64,10 @@ pub fn deinit(self: Texture, allocator: std.mem.Allocator) void {
 }
 
 pub fn pixel_at_index(self: Texture, i: usize) []const u8 {
-    if (self.stride == 1 and self.colors != null) {
+    if (self.stride == 1 and self.colors != null) { // palette index
         const ci = self.pixels[i];
         return std.mem.asBytes(&self.colors.?[ci]);
-    } else {
+    } else { // true RGB888/RGBA8888
         const is = i * self.stride;
         return self.pixels[is .. is + 3];
     }

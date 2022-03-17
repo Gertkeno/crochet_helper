@@ -191,30 +191,63 @@ fn last_color_change(self: Instance) usize {
     }
 }
 
+fn next_color_change(self: Instance) usize {
+    const p = self.save.progress;
+    if (p == self.max())
+        return 0;
+
+    const x = p % self.texture.width;
+    const y = p / self.texture.width;
+    if (y & 1 == 0) {
+        const start = self.texture.pixel_at_index(p);
+        var i: usize = 1;
+        while (i < self.texture.width - x) : (i += 1) {
+            const search = self.texture.pixel_at_index(p + i);
+            if (!std.mem.eql(u8, start, search)) {
+                return i;
+            }
+        }
+        return self.texture.width - x;
+    } else {
+        const op = y * self.texture.width + (self.texture.width - x - 1);
+        const start = self.texture.pixel_at_index(op);
+        var i: usize = 1;
+        while (i < self.texture.width - x) : (i += 1) {
+            const search = self.texture.pixel_at_index(op - i);
+            if (!std.mem.eql(u8, start, search)) {
+                return i;
+            }
+        }
+        return self.texture.width - x;
+    }
+}
+
 fn write_progress(self: *Instance) void {
     const lp = self.save.progress % self.texture.width;
     const hp = self.save.progress / self.texture.width;
-    const cp = std.math.min(lp, self.last_color_change());
+    const ncp = self.next_color_change();
+    const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
     if (self.expandedView) {
-        const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
+        const cp = std.math.min(lp, self.last_color_change());
         if (std.fmt.bufPrint(self.progressBuffer,
             \\Total: {:.>6}/{:.>6} {d: >3.1}%
             \\Lines: {d}
             \\Since line: {:.>5}
             \\Since Color: {:.>4}
+            \\Next Color: {:.>4}
             \\===
             \\Panning: WASD <^v>
             \\Zoom: QE
             \\Add Stitch ..10/1: V/C
             \\Remov Stitch 10/1: Z/X
             \\Toggle Help: ?
-        , .{ self.save.progress, self.max(), percent, hp, lp, cp })) |written| {
+        , .{ self.save.progress, self.max(), percent, hp, lp, cp, ncp })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             std.log.warn("Progress counter errored with: {any}", .{err});
         }
     } else {
-        if (std.fmt.bufPrint(self.progressBuffer, "T{:.>6}/{:.>6} L{:.>4} C{:.>4}", .{ self.save.progress, self.max(), lp, cp })) |written| {
+        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.1}% L{:.>4} C{:.>4}", .{ percent, lp, ncp })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             std.log.warn("Progress counter errored with: {any}", .{err});
