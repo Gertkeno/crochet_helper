@@ -42,7 +42,7 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
     const texture = try Texture.load_file(filename, ctx.render, allocator);
 
     // Save reading
-    const a = [_][]const u8{ ".", filename, ".save" };
+    const a = [_][]const u8{ ".", std.fs.path.basename(filename), ".save" };
     const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
     errdefer allocator.free(imgSaveFilename);
     const imgSave = try Save.open(imgSaveFilename);
@@ -64,7 +64,7 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
 pub fn deinit(self: Instance) void {
     self.allocator.free(self.progressBuffer);
     self.save.write() catch |err| {
-        std.log.err("Error saving: {any}", .{err});
+        std.log.err("Error saving: {any}, path {s}", .{ err, self.save.file });
         std.log.err("here's your progress number: {d}", .{self.save.progress});
     };
     self.allocator.free(self.save.file);
@@ -117,7 +117,7 @@ fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
             }
 
             self.save.write() catch |err| {
-                std.log.warn("Failed to save progress cause: {any}", .{err});
+                std.log.warn("Failed to save progress cause: {any}, path {s}", .{ err, self.save.file });
                 std.log.warn("You may want this number: {d}", .{self.save.progress});
             };
 
