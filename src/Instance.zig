@@ -231,10 +231,10 @@ fn next_color_change(self: Instance) usize {
 fn write_progress(self: *Instance) void {
     const lp = self.save.progress % self.texture.width;
     const hp = self.save.progress / self.texture.width;
+    const cp = std.math.min(lp, self.last_color_change());
     const ncp = self.next_color_change();
     const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
     if (self.expandedView) {
-        const cp = std.math.min(lp, self.last_color_change());
         if (std.fmt.bufPrint(self.progressBuffer,
             \\Total: {:.>6}/{:.>6} {d: >3.1}%
             \\Lines: {d}
@@ -259,7 +259,7 @@ fn write_progress(self: *Instance) void {
             std.log.warn("Progress counter errored with: {any}", .{err});
         }
     } else {
-        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.1}% L{:.>4} C{:.>4}", .{ percent, lp, ncp })) |written| {
+        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.1}% L{:.>4} C{:.>4}", .{ percent, cp, ncp })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             std.log.warn("Progress counter errored with: {any}", .{err});

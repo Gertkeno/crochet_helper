@@ -18,6 +18,12 @@ pub fn write_append(self: Self, currentProgress: u64) !void {
     const currentTime = std.time.timestamp();
     const duration = currentTime - self.startTime;
     const netprogress = currentProgress - self.startProgress;
+    if (netprogress <= 0 or duration <= 0) {
+        std.log.debug("No stats generated, no progress", .{});
+        return;
+    }
+
+    std.log.info("Average seconds per stitch = {d}", .{@intToFloat(f64, duration) / @intToFloat(f64, netprogress)});
 
     const file = try std.fs.cwd().createFile("crochet_stats.csv", .{ .truncate = false });
     defer file.close();
