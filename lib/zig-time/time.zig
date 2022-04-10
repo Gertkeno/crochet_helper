@@ -1,7 +1,5 @@
 const std = @import("std");
 const string = []const u8;
-const range = @import("range").range;
-const extras = @import("extras");
 const time = @This();
 
 pub const DateTime = struct {
@@ -187,8 +185,9 @@ pub const DateTime = struct {
 
     pub fn dayOfThisYear(self: Self) u16 {
         var ret: u16 = 0;
-        for (range(self.months)) |_, item| {
-            ret += self.daysInMonth(@intCast(u16, item));
+        var i: u16 = 0;
+        while (i < self.months) : (i += 1) {
+            ret += self.daysInMonth(i);
         }
         ret += self.days;
         return ret;
@@ -212,8 +211,14 @@ pub const DateTime = struct {
     fn daysSinceEpoch(self: Self) u64 {
         var res: u64 = 0;
         res += self.days;
-        for (range(self.years - epoch_unix.years)) |_, i| res += time.daysInYear(@intCast(u16, i));
-        for (range(self.months)) |_, i| res += self.daysInMonth(@intCast(u16, i));
+        var i: u16 = 0;
+        while (i < (self.years - epoch_unix.years)) : (i += 1) {
+            res += time.daysInYear(i);
+        }
+        i = 0;
+        while (i < self.months) : (i += 1) {
+            res += self.daysInMonth(i);
+        }
         return res;
     }
 
@@ -405,8 +410,6 @@ pub const format = struct {
 
 pub const TimeZone = enum {
     UTC,
-
-    usingnamespace extras.TagNameJsonStringifyMixin(@This());
 };
 
 pub const WeekDay = enum {
@@ -429,15 +432,11 @@ pub const WeekDay = enum {
             .Sat => .Sun,
         };
     }
-
-    usingnamespace extras.TagNameJsonStringifyMixin(@This());
 };
 
 pub const Era = enum {
     // BC,
     AD,
-
-    usingnamespace extras.TagNameJsonStringifyMixin(@This());
 };
 
 pub fn isLeapYear(year: u16) bool {

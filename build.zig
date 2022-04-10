@@ -14,6 +14,7 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("crochet_helper", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.addPackagePath("date", "lib/zig-time/time.zig");
 
     exe.linkLibC();
     if (target.toTarget().os.tag == .windows) {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const date = @import("date").DateTime;
 const Self = @This();
 
 startTime: i64,
@@ -25,10 +26,12 @@ pub fn write_append(self: Self, currentProgress: u64) !void {
     const end = try file.getEndPos();
     if (end == 0) {
         std.log.debug("New stats file, adding legend line", .{});
-        try writer.writeAll("Duration (seconds), stitches\n");
+        try writer.writeAll("Date, Duration (seconds), stitches\n");
     } else {
         try file.seekTo(end);
     }
 
-    try writer.print("{d}, {d}\n", .{ duration, netprogress });
+    const startDate = date.initUnix(@intCast(u63, self.startTime));
+
+    try writer.print("{YY-MM-DD HH.mm}, {d}, {d}\n", .{ startDate, duration, netprogress });
 }
