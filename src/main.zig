@@ -4,23 +4,20 @@ const Context = @import("Context.zig");
 
 fn drop_loop(ctx: Context, allocator: std.mem.Allocator) ?Instance {
     while (true) {
-        const filename = ctx.wait_for_file();
+        const filename = ctx.wait_for_file() orelse return null;
 
-        if (filename) |img| {
-            if (Instance.init(ctx, img, allocator)) |instance| {
-                return instance;
-            } else |err| {
-                const errstr = switch (err) {
-                    error.CreationFailure => "Probably a unsupported image format, try again with a JPEG or PNG",
-                    error.OutOfMemory => "Ran out of memory!",
-                    else => "Unkown error, check command prompt if available.",
-                };
+        if (Instance.init(ctx, filename, allocator)) |instance| {
+            return instance;
+        } else |err| {
+            const errstr = switch (err) {
+                error.CreationFailure => "Probably a unsupported image format, try again with a JPEG or PNG",
+                error.OutOfMemory => "Ran out of memory!",
+                else => @errorName(err), //"Unkown error, check command prompt if available.",
+            };
 
-                ctx.error_box(errstr);
-                continue;
-            }
-        } else {
-            return null;
+            std.log.warn("drop error: {s}", .{errstr});
+            ctx.error_box(errstr);
+            continue;
         }
     }
 }

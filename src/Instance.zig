@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const c = @import("c.zig");
 
 const Save = @import("Save.zig");
+const TimeStats = @import("TimeStats.zig");
 const Context = @import("Context.zig");
 const Texture = @import("Texture.zig");
 
@@ -18,6 +19,7 @@ running: bool,
 // texture
 //////////
 save: Save,
+timestat: TimeStats,
 texture: Texture,
 
 /////////////////////
@@ -52,6 +54,7 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
         .context = ctx,
 
         .save = imgSave,
+        .timestat = TimeStats.start(imgSave.progress),
         .texture = texture,
 
         .expandedView = imgSave.progress == 0,
@@ -63,9 +66,12 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
 
 pub fn deinit(self: Instance) void {
     self.allocator.free(self.progressBuffer);
+    self.timestat.write_append(self.save.progress) catch |err| {
+        std.log.warn("Error saving stats! {s}", .{@errorName(err)});
+    };
     self.save.write() catch |err| {
-        std.log.err("Error saving: {any}, path {s}", .{ err, self.save.file });
-        std.log.err("here's your progress number: {d}", .{self.save.progress});
+        std.log.err("Error saving: {s}, path {s}", .{ @errorName(err), self.save.file });
+        std.log.err("here's your progress number: {}", .{self.save.progress});
     };
     self.allocator.free(self.save.file);
     self.texture.deinit(self.allocator);
@@ -241,7 +247,13 @@ fn write_progress(self: *Instance) void {
             \\Add Stitch ..10/1: V/C
             \\Remov Stitch 10/1: Z/X
             \\Toggle Help: ?
-        , .{ self.save.progress, self.max(), percent, hp, lp, cp, ncp })) |written| {
+        , .{
+            self.save.progress, self.max(), percent, //
+            hp, //
+            lp,
+            cp,
+            ncp,
+        })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             std.log.warn("Progress counter errored with: {any}", .{err});
