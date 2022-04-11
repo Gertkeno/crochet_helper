@@ -1,4 +1,4 @@
-const c = @import("c.zig");
+const c = @import("sdl2");
 const std = @import("std");
 
 pub const TextureError = error{

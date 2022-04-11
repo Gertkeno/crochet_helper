@@ -31,8 +31,12 @@ spreadsheets.
 Requires [zig v0.9.1](https://ziglang.org) and
 [SDL2](https://www.libsdl.org/download-2.0.php).
 
-Building on Windows is a busted hard coded path in `build.zig`. I plan to
-convert this project to use lovely Zig SDL2 bindings from [this
-repo](https://github.com/MasterQ32/SDL.zig).
+Linux builds fine if sdl2 is installed through your package manager.
 
-Linux builds fine if sdl2 is installed through package managers.
+Windows and mac may require a configuration file in `.build_config/sdl.json`,
+explained more in a help message generated from a failed `zig build` run.
+
+# Credit
+
+`src/franklin.bmp` from an article on bitmap fonts at
+[dead-code.org](http://docs.dead-code.org/wme/inside_ui_fonts_bitmap.html)

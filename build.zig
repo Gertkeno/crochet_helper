@@ -1,6 +1,8 @@
 const Builder = @import("std").build.Builder;
+const SDL2 = @import("lib/SDL.zig/Sdk.zig");
 
 pub fn build(b: *Builder) void {
+    const sdl2sdk = SDL2.init(b);
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -16,19 +18,9 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(mode);
     exe.addPackagePath("date", "lib/zig-time/time.zig");
 
-    exe.linkLibC();
-    if (target.toTarget().os.tag == .windows) {
-        const wsdl2 = "SDL2-2.0.14/x86_64-w64-mingw32/";
-        exe.addIncludeDir(wsdl2 ++ "include");
-
-        exe.addLibPath(wsdl2 ++ "bin");
-        exe.addObjectFile(wsdl2 ++ "lib/libSDL2.dll.a");
-        exe.addObjectFile(wsdl2 ++ "lib/libSDL2main.a");
-        exe.addObjectFile(wsdl2 ++ "lib/libSDL2_image.dll.a");
-    } else {
-        exe.linkSystemLibrary("SDL2");
-        exe.linkSystemLibrary("SDL2_image");
-    }
+    sdl2sdk.link(exe, .dynamic);
+    exe.addPackage(sdl2sdk.getNativePackage("sdl2"));
+    exe.linkSystemLibrary("sdl2_image");
 
     exe.install();
 

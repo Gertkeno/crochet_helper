@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const c = @import("c.zig");
+const c = @import("sdl2");
 
 const Save = @import("Save.zig");
 const TimeStats = @import("TimeStats.zig");

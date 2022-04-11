@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig");
+const c = @import("sdl2");
 const Texture = @import("Texture.zig");
 
 const font_franklin = @embedFile("franklin.bmp");
