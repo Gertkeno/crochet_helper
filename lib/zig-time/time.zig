@@ -320,6 +320,7 @@ pub const DateTime = struct {
                 ':',
                 '-',
                 '.',
+                '/',
                 'T',
                 'W',
                 => {
