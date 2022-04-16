@@ -37,7 +37,7 @@ pub fn write_append(self: Self, currentProgress: u64) !void {
         try file.seekTo(end);
     }
 
-    const startDate = date.initUnix(@intCast(u63, self.startTime));
+    const startDate = date.initUnix(@intCast(u64, self.startTime));
 
-    try writer.print("{YYYY/MM/DD}, {d}, {d}\n", .{ startDate, duration, netprogress });
+    try writer.print("{YYYY/MM/DD HH}:{d:0>2}, {d}, {d}\n", .{ startDate, startDate.minutes, duration, netprogress });
 }
