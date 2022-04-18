@@ -1,6 +1,8 @@
 const c = @import("sdl2");
 const std = @import("std");
 
+const log = std.log.scoped(.Texture);
+
 pub const TextureError = error{
     CreationFailure,
 };
@@ -16,13 +18,13 @@ height: usize,
 
 pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std.mem.Allocator) !Texture {
     const surf: *c.SDL_Surface = c.IMG_Load(filename) orelse {
-        std.log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
+        log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
         return TextureError.CreationFailure;
     };
     const stride = surf.format.*.BytesPerPixel;
-    std.log.debug("Image stride (Bpp) {d}", .{stride});
+    log.debug("Image stride (Bpp) {d}", .{stride});
     if (stride == 1) {
-        std.log.debug("Low stride (bpp) {d}, {s}", .{
+        log.debug("Low stride (bpp) {d}, {s}", .{
             surf.format.*.BitsPerPixel,
             c.SDL_GetPixelFormatName(surf.format.*.format),
         });
@@ -34,7 +36,7 @@ pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std
     errdefer allocator.free(pixels);
 
     const texture = c.SDL_CreateTextureFromSurface(render, surf) orelse {
-        std.log.err("Failed to create texture for image: {s}", .{c.SDL_GetError()});
+        log.err("Failed to create texture for image: {s}", .{c.SDL_GetError()});
         return TextureError.CreationFailure;
     };
     errdefer c.SDL_DestroyTexture(texture);
@@ -43,6 +45,7 @@ pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std
     if (surf.format.*.palette) |palette| {
         const len = @intCast(usize, palette.*.ncolors);
         colors = try allocator.dupe(c.SDL_Color, palette.*.colors[0..len]);
+        log.debug("Found palette of {d} colors.", .{len});
     }
 
     return Texture{

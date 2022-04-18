@@ -8,18 +8,19 @@ const Context = @import("Context.zig");
 const Texture = @import("Texture.zig");
 
 const Instance = @This();
+const log = std.log.scoped(.Instance);
 //////////
 // context
 //////////
 allocator: std.mem.Allocator,
 context: Context,
 running: bool,
+timestat: TimeStats,
 
 //////////
 // texture
 //////////
 save: Save,
-timestat: TimeStats,
 texture: Texture,
 
 /////////////////////
@@ -47,6 +48,7 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
     const a = [_][]const u8{ ".", std.fs.path.basename(filename), ".save" };
     const imgSaveFilename = try std.mem.concat(allocator, u8, &a);
     errdefer allocator.free(imgSaveFilename);
+    log.debug("Save file name as \"{s}\"", .{imgSaveFilename});
     const imgSave = try Save.open(imgSaveFilename);
 
     return Instance{
@@ -67,11 +69,11 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
 pub fn deinit(self: Instance) void {
     self.allocator.free(self.progressBuffer);
     self.timestat.write_append(self.save.progress) catch |err| {
-        std.log.warn("Error saving stats! {s}", .{@errorName(err)});
+        log.warn("Error saving stats! {s}", .{@errorName(err)});
     };
     self.save.write() catch |err| {
-        std.log.err("Error saving: {s}, path {s}", .{ @errorName(err), self.save.file });
-        std.log.err("here's your progress number: {}", .{self.save.progress});
+        log.err("Error saving: {s}, path {s}", .{ @errorName(err), self.save.file });
+        log.err("here's your progress number: {}", .{self.save.progress});
     };
     self.allocator.free(self.save.file);
     self.texture.deinit(self.allocator);
@@ -117,14 +119,15 @@ fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
         };
 
         if (incval != 0) {
+            log.debug("Incrementing by {d: >3} was total: {d}", .{ incval, self.save.progress });
             self.save.increment(incval);
             if (self.save.progress > self.max()) {
                 self.save.progress = self.max();
             }
 
             self.save.write() catch |err| {
-                std.log.warn("Failed to save progress cause: {any}, path {s}", .{ err, self.save.file });
-                std.log.warn("You may want this number: {d}", .{self.save.progress});
+                log.warn("Failed to save progress cause: {s}, path {s}", .{ @errorName(err), self.save.file });
+                log.warn("You may want this number: {d}", .{self.save.progress});
             };
 
             self.write_progress();
@@ -256,13 +259,13 @@ fn write_progress(self: *Instance) void {
         })) |written| {
             self.progressCounter = written.len;
         } else |err| {
-            std.log.warn("Progress counter errored with: {any}", .{err});
+            log.warn("Progress counter errored with: {s}", .{@errorName(err)});
         }
     } else {
         if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.1}% L{:.>4} C{:.>4}", .{ percent, cp, ncp })) |written| {
             self.progressCounter = written.len;
         } else |err| {
-            std.log.warn("Progress counter errored with: {any}", .{err});
+            log.warn("Progress counter errored with: {s}", .{@errorName(err)});
         }
     }
 }
@@ -300,6 +303,8 @@ pub fn main_loop(self: *Instance) void {
         const frameTime = std.time.milliTimestamp() - frameStart;
         if (frameTime < FrameTimeMS) {
             c.SDL_Delay(@intCast(u32, FrameTimeMS - frameTime));
+        } else {
+            log.debug("Frame took {d} milliseconds!", .{frameTime});
         }
     }
 }

@@ -2,6 +2,8 @@ const std = @import("std");
 const date = @import("date").DateTime;
 const Self = @This();
 
+const log = std.log.scoped(.TimeStats);
+
 startTime: i64,
 startProgress: u64,
 
@@ -19,25 +21,25 @@ pub fn write_append(self: Self, currentProgress: u64) !void {
     const duration = currentTime - self.startTime;
     const netprogress = currentProgress - self.startProgress;
     if (netprogress <= 0 or duration <= 0) {
-        std.log.debug("No stats generated, no progress", .{});
+        log.debug("No stats generated, no progress", .{});
         return;
     }
 
-    std.log.info("Average seconds per stitch = {d}", .{@intToFloat(f64, duration) / @intToFloat(f64, netprogress)});
+    log.info("Average seconds per stitch = {d}", .{@intToFloat(f64, duration) / @intToFloat(f64, netprogress)});
 
     const file = try std.fs.cwd().createFile("crochet_stats.csv", .{ .truncate = false });
     defer file.close();
-    const writer = file.writer();
 
     const end = try file.getEndPos();
     if (end == 0) {
-        std.log.debug("New stats file, adding legend line", .{});
-        try writer.writeAll("Date, Duration (seconds), stitches\n");
+        log.debug("New stats file, adding legend line", .{});
+        try file.writeAll("Date, Duration (seconds), stitches\n");
     } else {
         try file.seekTo(end);
     }
 
     const startDate = date.initUnix(@intCast(u64, self.startTime));
 
+    const writer = file.writer();
     try writer.print("{YYYY/MM/DD HH}:{d:0>2}, {d}, {d}\n", .{ startDate, startDate.minutes, duration, netprogress });
 }
