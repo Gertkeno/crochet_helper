@@ -86,7 +86,7 @@ pub fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
             ox = x;
             oy += 32;
             continue;
-        } else if (std.ascii.isPrint(char)) {
+        } else {
             const cx = @intCast(i32, char % 16) * 32;
             const cy = @intCast(i32, char / 16) * 32;
             const srcRect = c.SDL_Rect{

@@ -21,6 +21,8 @@ pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std
         log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
         return TextureError.CreationFailure;
     };
+    defer c.SDL_FreeSurface(surf);
+
     const stride = surf.format.*.BytesPerPixel;
     log.debug("Image stride (Bpp) {d}", .{stride});
     if (stride == 1) {
@@ -30,7 +32,6 @@ pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std
         });
     }
 
-    defer c.SDL_FreeSurface(surf);
     const pct = @ptrCast([*]const u8, surf.pixels);
     const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, surf.w * surf.h * @intCast(c_int, stride))]);
     errdefer allocator.free(pixels);
