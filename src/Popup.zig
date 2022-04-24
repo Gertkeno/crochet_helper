@@ -1,4 +1,5 @@
 const time = @import("std").time;
+const setAlpha = @import("sdl2").SDL_SetTextureAlphaMod;
 const Context = @import("Context.zig");
 const string = []const u8;
 
@@ -7,28 +8,32 @@ const Self = @This();
 stamp: i64,
 texti: u8,
 
-const PopupSeconds = 20;
-const PopupMiliSeconds = PopupMiliSeconds * time.ms_per_s;
+const PopupSeconds = 25;
+const PopupMilliSeconds = PopupSeconds * time.ms_per_s;
 const PopupTexts = [_]string{ "-10", "-1", "+1", "+10", "???" };
 
 fn valid(self: Self, against: i64) bool {
-    return against - self.stamp < PopupSeconds;
+    return against - self.stamp < PopupMilliSeconds;
 }
 
 pub fn draw(self: []const Self, ctx: Context, ymax: i32) void {
-    const stamp = time.timestamp();
+    const stamp = time.milliTimestamp();
     var ybump: i32 = 32;
     for (self) |s| {
         if (s.valid(stamp)) {
-            const text = PopupTexts[s.texti];
+            const text: string = PopupTexts[s.texti];
+            const alpha: u8 = @intCast(u8, 255 - @divTrunc((stamp - s.stamp) * 255, PopupMilliSeconds));
+            _ = setAlpha(ctx.font, alpha);
+
             ctx.print_slice(text, 0, ymax - ybump);
             ybump += 32;
         }
     }
+    _ = setAlpha(ctx.font, 255);
 }
 
 pub fn push(self: []Self, inc: i32) void {
-    const stamp = time.timestamp();
+    const stamp = time.milliTimestamp();
     for (self) |*s| {
         if (!s.valid(stamp)) {
             s.stamp = stamp;
