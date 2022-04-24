@@ -75,6 +75,13 @@ pub fn deinit(self: Context) void {
     c.SDL_Quit();
 }
 
+pub fn get_window_size(self: Context) struct { x: i32, y: i32 } {
+    var x: i32 = undefined;
+    var y: i32 = undefined;
+    c.SDL_GetWindowSize(self.window, &x, &y);
+    return .{ .x = x, .y = y };
+}
+
 //////////////////
 // FONT DRAWING //
 //////////////////

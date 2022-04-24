@@ -6,6 +6,7 @@ const Save = @import("Save.zig");
 const TimeStats = @import("TimeStats.zig");
 const Context = @import("Context.zig");
 const Texture = @import("Texture.zig");
+const Popup = @import("Popup.zig");
 
 const Instance = @This();
 const log = std.log.scoped(.Instance);
@@ -14,7 +15,7 @@ const log = std.log.scoped(.Instance);
 //////////
 allocator: std.mem.Allocator,
 context: Context,
-running: bool,
+running: bool = true,
 timestat: TimeStats,
 
 //////////
@@ -31,8 +32,10 @@ scrolling: u4 = 0,
 expandedView: bool = true,
 dragPoint: ?struct { x: f32, y: f32 } = null,
 mousePos: c.SDL_Point = undefined,
+windowSize: c.SDL_Point = .{ .x = 1000, .y = 600 },
 progressBuffer: []u8,
 progressCounter: usize = 0,
+popups: []Popup,
 
 const FrameRate = 24;
 const FrameTimeMS = 1000 / FrameRate;
@@ -51,6 +54,11 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
     log.debug("Save file name as \"{s}\"", .{imgSaveFilename});
     const imgSave = try Save.open(imgSaveFilename);
 
+    // initialize increment popups
+    const popups = try allocator.alloc(Popup, 20);
+    errdefer allocator.free(popups);
+    std.mem.set(Popup, popups, Popup{ .stamp = 0, .texti = 0 });
+
     return Instance{
         .allocator = allocator,
         .context = ctx,
@@ -61,12 +69,12 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
 
         .expandedView = imgSave.progress == 0,
         .progressBuffer = try allocator.alloc(u8, 0xDF),
-
-        .running = true,
+        .popups = popups,
     };
 }
 
 pub fn deinit(self: Instance) void {
+    self.allocator.free(self.popups);
     self.allocator.free(self.progressBuffer);
     self.timestat.write_append(self.save.progress) catch |err| {
         log.warn("Error saving stats! {s}", .{@errorName(err)});
@@ -131,6 +139,7 @@ fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
             };
 
             self.write_progress();
+            Popup.push(self.popups, incval);
         }
     }
 
@@ -165,6 +174,12 @@ fn handle_events(self: *Instance) void {
         } else if (e.type == c.SDL_MOUSEMOTION) {
             self.mousePos.x = e.motion.x;
             self.mousePos.y = e.motion.y;
+        } else if (e.type == c.SDL_WINDOWEVENT and
+            (e.window.event == c.SDL_WINDOWEVENT_SIZE_CHANGED or e.window.event == c.SDL_WINDOWEVENT_RESIZED))
+        {
+            self.windowSize.x = e.window.data1;
+            self.windowSize.y = e.window.data2;
+            std.log.debug("resized: {}x{}", .{ self.windowSize.x, self.windowSize.y });
         } else if (e.type == c.SDL_QUIT) {
             self.running = false;
         } else {}
@@ -297,6 +312,7 @@ pub fn main_loop(self: *Instance) void {
         self.context.clear();
         self.context.draw_all(self.texture, self.save.progress);
         self.context.print_slice(self.progressBuffer[0..self.progressCounter], 10, 0);
+        Popup.draw(self.popups, self.context, self.windowSize.y);
         self.context.swap();
 
         // frame limit with SDL_Delay

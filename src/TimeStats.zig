@@ -17,6 +17,11 @@ pub fn start(currentProgress: u64) Self {
 }
 
 pub fn write_append(self: Self, currentProgress: u64) !void {
+    if (currentProgress < self.startProgress) {
+        log.debug("No stats generated, negative progress", .{});
+        return;
+    }
+
     const currentTime = std.time.timestamp();
     const duration = currentTime - self.startTime;
     const netprogress = currentProgress - self.startProgress;
