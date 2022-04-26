@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("sdl2");
+const sdl = @import("sdl2");
 const Texture = @import("Texture.zig");
 
 const font_franklin = @embedFile("franklin.bmp");
@@ -13,9 +13,9 @@ pub const ContextError = error{
 
 const Context = @This();
 
-window: *c.SDL_Window,
-render: *c.SDL_Renderer,
-font: *c.SDL_Texture,
+window: sdl.Window,
+render: sdl.Renderer,
+font: sdl.Texture,
 offset: struct {
     x: f32 = 0,
     y: f32 = 0,
@@ -26,40 +26,25 @@ const HintDotsCount = 10;
 
 pub fn init() !Context {
     // SDL2 init
-    if (c.SDL_Init(c.SDL_INIT_EVENTS) != 0) {
-        std.log.err("Failed to init SDL2: {s}", .{c.SDL_GetError()});
-        return ContextError.InitError;
-    }
-    _ = c.IMG_Init(c.IMG_INIT_JPG | c.IMG_INIT_PNG);
-    errdefer c.SDL_Quit();
-    errdefer c.IMG_Quit();
+    try sdl.init(.{ .events = true });
+    try sdl.image.init(.{ .png = true, .jpg = true });
+    errdefer sdl.quit();
+    errdefer sdl.image.quit();
 
-    const wflags = c.SDL_WINDOW_RESIZABLE;
-    const pos = c.SDL_WINDOWPOS_CENTERED;
-    const window = c.SDL_CreateWindow("gert's crochet helper", pos, pos, 1000, 600, wflags) orelse {
-        std.log.err("Failed to create Window: {s}", .{c.SDL_GetError()});
-        return ContextError.WindowError;
+    const wflags = sdl.WindowFlags{
+        .resizable = true,
     };
-    errdefer c.SDL_DestroyWindow(window);
+    const pos = sdl.WindowPosition.default;
+    const window = try sdl.createWindow("gert's crochet helper", pos, pos, 1000, 600, wflags);
+    errdefer window.destroy();
 
-    const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse
-        c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_SOFTWARE) orelse
-        {
-        std.log.err("Failed to create renderer: {s}", .{c.SDL_GetError()});
-        return ContextError.RendererError;
-    };
-    errdefer c.SDL_DestroyRenderer(renderer);
+    const renderer = sdl.createRenderer(window, null, .{}) catch try sdl.createRenderer(window, null, .{ .software = true });
+    errdefer renderer.destroy();
 
-    const fsurf: *c.SDL_Surface = c.SDL_LoadBMP_RW(c.SDL_RWFromConstMem(font_franklin, font_franklin.len), 1) orelse {
-        std.log.err("Failed to create font surface from interal image: {s}", .{c.SDL_GetError()});
-        return ContextError.TextureError;
-    };
-    defer c.SDL_FreeSurface(fsurf);
-    _ = c.SDL_SetColorKey(fsurf, c.SDL_TRUE, c.SDL_MapRGB(fsurf.format, 0xFF, 0, 0xFF));
-    const ftexture = c.SDL_CreateTextureFromSurface(renderer, fsurf) orelse {
-        std.log.err("Failed to create font from internal image: {s}", .{c.SDL_GetError()});
-        return ContextError.TextureError;
-    };
+    const fsurf = try sdl.loadBmpFromConstMem(font_franklin);
+    defer fsurf.destroy();
+    try fsurf.setColorKey(true, sdl.Color.magenta);
+    const ftexture = try sdl.createTextureFromSurface(renderer, fsurf);
 
     return Context{
         .window = window,
@@ -69,17 +54,11 @@ pub fn init() !Context {
 }
 
 pub fn deinit(self: Context) void {
-    c.SDL_DestroyRenderer(self.render);
-    c.SDL_DestroyWindow(self.window);
-    c.IMG_Quit();
-    c.SDL_Quit();
-}
+    self.render.destroy();
+    self.window.destroy();
 
-pub fn get_window_size(self: Context) struct { x: i32, y: i32 } {
-    var x: i32 = undefined;
-    var y: i32 = undefined;
-    c.SDL_GetWindowSize(self.window, &x, &y);
-    return .{ .x = x, .y = y };
+    sdl.image.quit();
+    sdl.quit();
 }
 
 //////////////////
@@ -96,19 +75,19 @@ pub fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
         } else {
             const cx = @intCast(i32, char % 16) * 32;
             const cy = @intCast(i32, char / 16) * 32;
-            const srcRect = c.SDL_Rect{
+            const srcRect = sdl.Rectangle{
                 .x = cx,
                 .y = cy,
-                .w = 32,
-                .h = 32,
+                .width = 32,
+                .height = 32,
             };
-            const dstRect = c.SDL_Rect{
+            const dstRect = sdl.Rectangle{
                 .x = ox,
                 .y = oy,
-                .w = 32,
-                .h = 32,
+                .width = 32,
+                .height = 32,
             };
-            _ = c.SDL_RenderCopy(self.render, self.font, &srcRect, &dstRect);
+            self.render.copy(self.font, dstRect, srcRect) catch {};
         }
         ox += 18;
     }
@@ -117,23 +96,13 @@ pub fn print_slice(self: Context, str: []const u8, x: i32, y: i32) void {
 /////////////////////
 // REGUALR DRAWING //
 /////////////////////
-pub fn set_color(self: Context, r: u8, g: u8, b: u8) void {
-    _ = c.SDL_SetRenderDrawColor(self.render, r, g, b, 0xFF);
-}
-
-pub fn draw_line(self: Context, x1: c_int, y1: c_int, x2: c_int) void {
-    _ = c.SDL_RenderDrawLine(self.render, x1, y1, x2, y1);
-}
-
 pub fn clear(self: Context) void {
-    self.set_color(0, 0, 0);
-    if (c.SDL_RenderClear(self.render) != 0) {
-        std.log.info("Failed to clear renderer: {s}", .{c.SDL_GetError()});
-    }
+    self.render.setColor(sdl.Color.black) catch {};
+    self.render.clear() catch {};
 }
 
 pub fn swap(self: Context) void {
-    c.SDL_RenderPresent(self.render);
+    self.render.present();
 }
 
 fn set_inverse_color(self: Context, texture: Texture, x: usize, y: usize) void {
@@ -142,60 +111,56 @@ fn set_inverse_color(self: Context, texture: Texture, x: usize, y: usize) void {
     const r = 255 - pixel[0];
     const g = 255 - pixel[1];
     const b = 255 - pixel[2];
-    self.set_color(r, g, b);
+    self.render.setColorRGB(r, g, b) catch {};
 }
 
 pub fn draw_all(self: Context, texture: Texture, progress: usize) void {
     // draw texture
-    const drawRect = c.SDL_Rect{
+    const drawRect = sdl.Rectangle{
         .x = @floatToInt(i32, self.offset.x),
         .y = @floatToInt(i32, self.offset.y),
-        .w = @intCast(i32, texture.width) * self.offset.z,
-        .h = @intCast(i32, texture.height) * self.offset.z,
+        .width = @intCast(i32, texture.width) * self.offset.z,
+        .height = @intCast(i32, texture.height) * self.offset.z,
     };
-    if (c.SDL_RenderCopy(self.render, texture.handle, null, &drawRect) != 0) {
-        std.log.info("Failed to render to screen", .{});
-    }
+    self.render.copy(texture.handle, drawRect, null) catch {};
 
     // draw fully complete lines
-    self.set_color(0xFF, 0, 0);
+    self.render.setColor(sdl.Color.red) catch {};
     var fullLines: usize = progress / texture.width;
     while (fullLines > 0) : (fullLines -= 1) {
         const x = @floatToInt(c_int, self.offset.x);
         const y = @floatToInt(c_int, self.offset.y) + @intCast(c_int, fullLines) * self.offset.z - @divTrunc(self.offset.z, 2);
         const maxX = @intCast(c_int, texture.width) * self.offset.z;
-        self.draw_line(x, y, x + maxX);
+        self.render.drawLine(x, y, x + maxX, y) catch {};
     }
 
     // draw progress
-    self.set_color(0xFF, 0, 0x7F);
+    self.render.setColorRGB(0xFF, 0, 0x7F) catch {};
     const y = progress / texture.width;
     const x = progress % texture.width;
     const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z + @divTrunc(self.offset.z, 2);
     if (y & 1 == 0) {
         // left to right
         const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, x) * self.offset.z;
-        self.draw_line(@floatToInt(c_int, self.offset.x), oy, ox);
+        self.render.drawLine(@floatToInt(i32, self.offset.x), oy, ox, oy) catch {};
 
-        self.set_color(0, 0xFF, 0);
         var i: u32 = 0;
         while (i < HintDotsCount and x + i < texture.width) : (i += 1) {
             const hintX = ox + (@intCast(i32, i) * self.offset.z) + @divTrunc(self.offset.z, 2);
             self.set_inverse_color(texture, x + i, y);
-            _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
+            self.render.drawPoint(hintX, oy) catch {};
         }
     } else {
         // right to left
         const ow = @floatToInt(c_int, self.offset.x) + @intCast(c_int, texture.width) * self.offset.z;
         const ox = @floatToInt(c_int, self.offset.x) + @intCast(c_int, texture.width - x) * self.offset.z;
-        self.draw_line(ow, oy, ox);
+        self.render.drawLine(ow, oy, ox, oy) catch {};
 
-        self.set_color(0, 0xFF, 0);
         var i: u32 = 0;
         while (i < HintDotsCount and x + i < texture.width) : (i += 1) {
             const hintX = ox - (@intCast(i32, i) * self.offset.z) - @divTrunc(self.offset.z, 2);
             self.set_inverse_color(texture, texture.width - x - i - 1, y);
-            _ = c.SDL_RenderDrawPoint(self.render, hintX, oy);
+            self.render.drawPoint(hintX, oy) catch {};
         }
     }
 }
@@ -204,35 +169,36 @@ pub fn draw_all(self: Context, texture: Texture, progress: usize) void {
 // DROP EVENT //
 ////////////////
 pub fn wait_for_file(self: Context) ?[:0]const u8 {
-    var e: c.SDL_Event = undefined;
-
     while (true) {
-        while (c.SDL_PollEvent(&e) == 1) {
-            if (e.type == c.SDL_DROPFILE) {
-                return std.mem.span(e.drop.file);
-            } else if (e.type == c.SDL_DROPTEXT) {
-                self.error_box("Could not understand dropped item, try something else.");
-            } else if (e.type == c.SDL_KEYDOWN) {
-                if (e.key.keysym.sym == c.SDLK_F4 and c.SDL_GetModState() & c.KMOD_ALT != 0) {
+        while (sdl.pollEvent()) |e| {
+            switch (e) {
+                .drop_file => |file| {
+                    return std.mem.span(file.file);
+                },
+                .drop_text => {
+                    self.error_box("Could not understand dropped item, try something else. Was text");
+                },
+                .key_down => |key| {
+                    if (key.keycode == .f4 and sdl.getModState().get(sdl.KeyModifierBit.left_alt)) {
+                        return null;
+                    }
+                },
+                .quit => {
                     return null;
-                }
-            } else if (e.type == c.SDL_QUIT) {
-                return null;
+                },
+                else => {},
             }
         }
 
         self.clear();
         self.print_slice("Please drag a image onto this window to open it", 20, 80);
         self.swap();
-        c.SDL_Delay(33);
+        sdl.delay(33);
     }
 
     return null;
 }
 
 pub fn error_box(self: Context, msg: [:0]const u8) void {
-    const err = c.SDL_ShowSimpleMessageBox(c.SDL_MESSAGEBOX_ERROR, "Error!", msg, self.window);
-    if (err != 0) {
-        std.log.err("Error creation failed! msg: \"{s}\" SDL: {s}", .{ msg, c.SDL_GetError() });
-    }
+    sdl.showSimpleMessageBox(.{ .@"error" = true }, "Error!", msg, self.window) catch {};
 }

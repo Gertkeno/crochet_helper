@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const c = @import("sdl2");
+const sdl = @import("sdl2");
 
 const Save = @import("Save.zig");
 const TimeStats = @import("TimeStats.zig");
@@ -31,8 +31,8 @@ texture: Texture,
 scrolling: u4 = 0,
 expandedView: bool = true,
 dragPoint: ?struct { x: f32, y: f32 } = null,
-mousePos: c.SDL_Point = undefined,
-windowSize: c.SDL_Point = .{ .x = 1000, .y = 600 },
+mousePos: sdl.Point = undefined,
+windowSize: sdl.Size = .{ .width = 1000, .height = 600 },
 progressBuffer: []u8,
 progressCounter: usize = 0,
 popups: []Popup,
@@ -45,7 +45,10 @@ const FrameTimeMS = 1000 / FrameRate;
 //////////
 pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) !Instance {
     // image loading
-    const texture = try Texture.load_file(filename, ctx.render, allocator);
+    const texture = Texture.load_file(filename, ctx.render, allocator) catch {
+        log.warn("Texture creation failure!", .{});
+        return error.TextureError;
+    };
 
     // Save reading
     const a = [_][]const u8{ ".", std.fs.path.basename(filename), ".save" };
@@ -91,23 +94,23 @@ pub fn deinit(self: Instance) void {
 ////////////
 // EVENTS //
 ////////////
-fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
+fn handle_key(self: *Instance, eventkey: sdl.Keycode, up: bool) void {
     // singular presses
     if (!up) {
         // zoom in/out
         switch (eventkey) {
-            c.SDLK_e => {
+            sdl.Keycode.e => {
                 self.context.offset.z += 1;
             },
-            c.SDLK_q => {
+            sdl.Keycode.q => {
                 self.context.offset.z = std.math.max(1, self.context.offset.z - 1);
             },
-            c.SDLK_SLASH => {
+            sdl.Keycode.slash => {
                 self.expandedView = !self.expandedView;
                 self.write_progress();
             },
-            c.SDLK_F4 => {
-                if (c.SDL_GetModState() & c.KMOD_ALT != 0) {
+            sdl.Keycode.f4 => {
+                if (sdl.getModState().get(sdl.KeyModifierBit.left_alt)) {
                     self.running = false;
                     return;
                 }
@@ -117,12 +120,12 @@ fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
 
         // increments
         const incval: i32 = switch (eventkey) {
-            c.SDLK_z => -10,
-            c.SDLK_x => -1,
-            c.SDLK_c => 1,
-            c.SDLK_v => 10,
-            c.SDLK_F1 => if (builtin.mode == .Debug) 999999 else 0,
-            c.SDLK_F2 => if (builtin.mode == .Debug) -999999 else 0,
+            sdl.Keycode.z => -10,
+            sdl.Keycode.x => -1,
+            sdl.Keycode.c => 1,
+            sdl.Keycode.v => 10,
+            sdl.Keycode.f1 => if (builtin.mode == .Debug) 999999 else 0,
+            sdl.Keycode.f2 => if (builtin.mode == .Debug) -999999 else 0,
             else => 0,
         };
 
@@ -145,10 +148,10 @@ fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
 
     // movement mask
     const mask: u4 = switch (eventkey) {
-        c.SDLK_LEFT, c.SDLK_a => 0b1000,
-        c.SDLK_RIGHT, c.SDLK_d => 0b0100,
-        c.SDLK_UP, c.SDLK_w => 0b0010,
-        c.SDLK_DOWN, c.SDLK_s => 0b0001,
+        sdl.Keycode.left, sdl.Keycode.a => 0b1000,
+        sdl.Keycode.right, sdl.Keycode.d => 0b0100,
+        sdl.Keycode.up, sdl.Keycode.w => 0b0010,
+        sdl.Keycode.down, sdl.Keycode.s => 0b0001,
         else => 0b0000,
     };
 
@@ -160,29 +163,39 @@ fn handle_key(self: *Instance, eventkey: c_int, up: bool) void {
 }
 
 fn handle_events(self: *Instance) void {
-    var e: c.SDL_Event = undefined;
-    while (c.SDL_PollEvent(&e) == 1) {
-        if (e.type == c.SDL_KEYDOWN or e.type == c.SDL_KEYUP) {
-            self.handle_key(e.key.keysym.sym, e.type == c.SDL_KEYUP);
-        } else if (e.type == c.SDL_MOUSEBUTTONDOWN) {
-            self.dragPoint = .{
-                .x = @intToFloat(f32, e.button.x) - self.context.offset.x,
-                .y = @intToFloat(f32, e.button.y) - self.context.offset.y,
-            };
-        } else if (e.type == c.SDL_MOUSEBUTTONUP) {
-            self.dragPoint = null;
-        } else if (e.type == c.SDL_MOUSEMOTION) {
-            self.mousePos.x = e.motion.x;
-            self.mousePos.y = e.motion.y;
-        } else if (e.type == c.SDL_WINDOWEVENT and
-            (e.window.event == c.SDL_WINDOWEVENT_SIZE_CHANGED or e.window.event == c.SDL_WINDOWEVENT_RESIZED))
-        {
-            self.windowSize.x = e.window.data1;
-            self.windowSize.y = e.window.data2;
-            std.log.debug("resized: {}x{}", .{ self.windowSize.x, self.windowSize.y });
-        } else if (e.type == c.SDL_QUIT) {
-            self.running = false;
-        } else {}
+    while (sdl.pollEvent()) |e| {
+        switch (e) {
+            .key_down, .key_up => |key| {
+                self.handle_key(key.keycode, e == .key_up);
+            },
+            .mouse_button_up => {
+                self.dragPoint = null;
+            },
+            .mouse_button_down => |mouse| {
+                self.dragPoint = .{
+                    .x = @intToFloat(f32, mouse.x) - self.context.offset.x,
+                    .y = @intToFloat(f32, mouse.y) - self.context.offset.y,
+                };
+            },
+            .mouse_motion => |mouse| {
+                self.mousePos.x = mouse.x;
+                self.mousePos.y = mouse.y;
+            },
+            .window => |window| {
+                switch (window.type) {
+                    .size_changed, .resized => |size| {
+                        self.windowSize = size;
+                        log.debug("resized: {}x{}", .{ size.width, size.height });
+                    },
+                    else => {},
+                }
+            },
+            .quit => {
+                self.running = false;
+            },
+
+            else => {},
+        }
     }
 }
 
@@ -312,13 +325,13 @@ pub fn main_loop(self: *Instance) void {
         self.context.clear();
         self.context.draw_all(self.texture, self.save.progress);
         self.context.print_slice(self.progressBuffer[0..self.progressCounter], 10, 0);
-        Popup.draw(self.popups, self.context, self.windowSize.y);
+        Popup.draw(self.popups, self.context, self.windowSize.height);
         self.context.swap();
 
         // frame limit with SDL_Delay
         const frameTime = std.time.milliTimestamp() - frameStart;
         if (frameTime < FrameTimeMS) {
-            c.SDL_Delay(@intCast(u32, FrameTimeMS - frameTime));
+            sdl.delay(@intCast(u32, FrameTimeMS - frameTime));
         } else {
             log.debug("Frame took {d} milliseconds!", .{frameTime});
         }

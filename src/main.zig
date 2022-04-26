@@ -10,7 +10,7 @@ fn drop_loop(ctx: Context, allocator: std.mem.Allocator) ?Instance {
             return instance;
         } else |err| {
             const errstr = switch (err) {
-                error.CreationFailure => "Probably a unsupported image format, try again with a JPEG or PNG",
+                error.TextureError => "Probably a unsupported image format, try again with a JPEG or PNG",
                 error.OutOfMemory => "Ran out of memory!",
                 else => @errorName(err), //"Unkown error, check command prompt if available.",
             };
@@ -60,6 +60,7 @@ pub fn main() anyerror!void {
 
         instance.main_loop();
     } else {
+        std.log.debug("No filename argument, starting drop file loop...", .{});
         var instance = drop_loop(ctx, allocator) orelse return;
         defer instance.deinit();
 

@@ -1,4 +1,4 @@
-const c = @import("sdl2");
+const sdl = @import("sdl2");
 const std = @import("std");
 
 const log = std.log.scoped(.Texture);
@@ -9,49 +9,44 @@ pub const TextureError = error{
 
 const Texture = @This();
 
-handle: *c.SDL_Texture,
+handle: sdl.Texture,
 pixels: []const u8,
 stride: u8,
-colors: ?[]c.SDL_Color,
+colors: ?[]sdl.Color,
 width: usize,
 height: usize,
 
-pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std.mem.Allocator) !Texture {
-    const surf: *c.SDL_Surface = c.IMG_Load(filename) orelse {
-        log.err("Failed to create surface for image: {s}", .{c.IMG_GetError()});
-        return TextureError.CreationFailure;
-    };
-    defer c.SDL_FreeSurface(surf);
+pub fn load_file(filename: [:0]const u8, render: sdl.Renderer, allocator: std.mem.Allocator) !Texture {
+    const surf = try sdl.image.loadSurface(filename);
+    defer surf.destroy();
 
-    const stride = surf.format.*.BytesPerPixel;
+    const stride = surf.ptr.format.*.BytesPerPixel;
     log.debug("Image stride (Bpp) {d}", .{stride});
     if (stride == 1) {
         log.debug("Low stride (bpp) {d}, {s}", .{
-            surf.format.*.BitsPerPixel,
-            c.SDL_GetPixelFormatName(surf.format.*.format),
+            surf.ptr.format.*.BitsPerPixel,
+            sdl.c.SDL_GetPixelFormatName(surf.ptr.format.*.format),
         });
     }
 
-    const pct = @ptrCast([*]const u8, surf.pixels);
-    const pixels = try allocator.dupe(u8, pct[0..@intCast(usize, surf.w * surf.h * @intCast(c_int, stride))]);
+    const pct = @ptrCast([*]const u8, surf.ptr.pixels);
+    const pctlen = @intCast(usize, surf.ptr.w * surf.ptr.h * @intCast(c_int, stride));
+    const pixels = try allocator.dupe(u8, pct[0..pctlen]);
     errdefer allocator.free(pixels);
 
-    const texture = c.SDL_CreateTextureFromSurface(render, surf) orelse {
-        log.err("Failed to create texture for image: {s}", .{c.SDL_GetError()});
-        return TextureError.CreationFailure;
-    };
-    errdefer c.SDL_DestroyTexture(texture);
+    const texture = try sdl.createTextureFromSurface(render, surf);
+    errdefer texture.destroy();
 
-    var colors: ?[]c.SDL_Color = null;
-    if (surf.format.*.palette) |palette| {
+    var colors: ?[]sdl.Color = null;
+    if (surf.ptr.format.*.palette) |palette| {
         const len = @intCast(usize, palette.*.ncolors);
-        colors = try allocator.dupe(c.SDL_Color, palette.*.colors[0..len]);
+        colors = try allocator.dupe(sdl.Color, @ptrCast([*]sdl.Color, palette.*.colors)[0..len]);
         log.debug("Found palette of {d} colors.", .{len});
     }
 
     return Texture{
-        .width = @intCast(usize, surf.w),
-        .height = @intCast(usize, surf.h),
+        .width = @intCast(usize, surf.ptr.w),
+        .height = @intCast(usize, surf.ptr.h),
         .stride = stride,
         .pixels = pixels,
         .handle = texture,
@@ -60,7 +55,7 @@ pub fn load_file(filename: [:0]const u8, render: *c.SDL_Renderer, allocator: std
 }
 
 pub fn deinit(self: Texture, allocator: std.mem.Allocator) void {
-    c.SDL_DestroyTexture(self.handle);
+    self.handle.destroy();
     allocator.free(self.pixels);
     if (self.colors) |colors| {
         allocator.free(colors);

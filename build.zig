@@ -17,7 +17,7 @@ pub fn build(b: *Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.addPackagePath("date", "lib/zig-time/time.zig");
-    exe.addPackage(sdl2sdk.getNativePackage("sdl2"));
+    exe.addPackage(sdl2sdk.getWrapperPackage("sdl2"));
 
     sdl2sdk.link(exe, .dynamic);
     exe.linkSystemLibrary("sdl2_image");

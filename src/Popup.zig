@@ -1,5 +1,4 @@
 const time = @import("std").time;
-const setAlpha = @import("sdl2").SDL_SetTextureAlphaMod;
 const Context = @import("Context.zig");
 const string = []const u8;
 
@@ -23,13 +22,14 @@ pub fn draw(self: []const Self, ctx: Context, ymax: i32) void {
         if (s.valid(stamp)) {
             const text: string = PopupTexts[s.texti];
             const alpha: u8 = @intCast(u8, 255 - @divTrunc((stamp - s.stamp) * 255, PopupMilliSeconds));
-            _ = setAlpha(ctx.font, alpha);
+            ctx.font.setAlphaMod(alpha) catch {};
 
             ctx.print_slice(text, 0, ymax - ybump);
             ybump += 32;
         }
     }
-    _ = setAlpha(ctx.font, 255);
+
+    ctx.font.setAlphaMod(0xFF) catch {};
 }
 
 pub fn push(self: []Self, inc: i32) void {
