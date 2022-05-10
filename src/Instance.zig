@@ -267,11 +267,11 @@ fn write_progress(self: *Instance) void {
     const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
     if (self.expandedView) {
         if (std.fmt.bufPrint(self.progressBuffer,
-            \\Total: {:.>6}/{:.>6} {d: >3.1}%
+            \\Total: {:.>6}/{:.>6} {d: >3.2}%
             \\Lines: {d}
-            \\Since line: {:.>5}
-            \\Since Color: {:.>4}
-            \\Next Color: {:.>5}
+            \\Since line: {:.>4}
+            \\Since Color: {:.>3}
+            \\Next Color: {:.>4}
             \\===
             \\Panning: WASD <^v>
             \\Zoom: Q/E
@@ -290,7 +290,7 @@ fn write_progress(self: *Instance) void {
             log.warn("Progress counter errored with: {s}", .{@errorName(err)});
         }
     } else {
-        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.1}% L{:.>4} C{:.>4}", .{ percent, cp, ncp })) |written| {
+        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.2}% L{:.>3} C{:.>3}", .{ percent, cp, ncp })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             log.warn("Progress counter errored with: {s}", .{@errorName(err)});

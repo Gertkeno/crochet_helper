@@ -39,4 +39,5 @@ explained more in a help message generated from a failed `zig build` run.
 # Credit
 
 `src/franklin.bmp` from an article on bitmap fonts at
-[dead-code.org](http://docs.dead-code.org/wme/inside_ui_fonts_bitmap.html)
+[dead-code.org](http://docs.dead-code.org/wme/inside_ui_fonts_bitmap.html "Dead
+Code article on ui bitmap fonts")
