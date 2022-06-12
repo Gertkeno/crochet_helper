@@ -137,6 +137,9 @@ pub fn draw_all(self: Context, texture: Texture, progress: usize) void {
     // draw progress
     self.render.setColorRGB(0xFF, 0, 0x7F) catch {};
     const y = progress / texture.width;
+    if (y >= texture.height) {
+        return;
+    }
     const x = progress % texture.width;
     const oy = @floatToInt(c_int, self.offset.y) + @intCast(c_int, y) * self.offset.z + @divTrunc(self.offset.z, 2);
     if (y & 1 == 0) {

@@ -30,6 +30,7 @@ pub fn write_append(self: Self, currentProgress: u64) !void {
         return;
     }
 
+    log.info("Total progress = {d}", .{netprogress});
     log.info("Average seconds per stitch = {d}", .{@intToFloat(f64, duration) / @intToFloat(f64, netprogress)});
 
     const file = try std.fs.cwd().createFile("crochet_stats.csv", .{ .truncate = false });
