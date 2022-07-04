@@ -10,6 +10,12 @@ const Popup = @import("Popup.zig");
 
 const Instance = @This();
 const log = std.log.scoped(.Instance);
+
+pub const Settings = struct {
+    time_stats: bool = true,
+    save_progress: bool = true,
+};
+
 //////////
 // context
 //////////
@@ -17,6 +23,7 @@ allocator: std.mem.Allocator,
 context: Context,
 running: bool = true,
 timestat: TimeStats,
+settings: Settings,
 
 //////////
 // texture
@@ -43,7 +50,7 @@ const FrameTimeMS = 1000 / FrameRate;
 //////////
 // INIT //
 //////////
-pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) !Instance {
+pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator, settings: Settings) !Instance {
     // image loading
     const texture = Texture.load_file(filename, ctx.render, allocator) catch {
         log.warn("Texture creation failure!", .{});
@@ -68,6 +75,7 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
 
         .save = imgSave,
         .timestat = TimeStats.start(imgSave.progress),
+        .settings = settings,
         .texture = texture,
 
         .expandedView = imgSave.progress == 0,
@@ -77,15 +85,21 @@ pub fn init(ctx: Context, filename: [:0]const u8, allocator: std.mem.Allocator) 
 }
 
 pub fn deinit(self: Instance) void {
+    if (self.settings.time_stats) {
+        self.timestat.write_append(self.save.progress) catch |err| {
+            log.warn("Error saving stats! {s}", .{@errorName(err)});
+        };
+    }
+
+    if (self.settings.save_progress) {
+        self.save.write() catch |err| {
+            log.err("Error saving: {s}, path {s}", .{ @errorName(err), self.save.file });
+            log.err("here's your progress number: {}", .{self.save.progress});
+        };
+    }
+
     self.allocator.free(self.popups);
     self.allocator.free(self.progressBuffer);
-    self.timestat.write_append(self.save.progress) catch |err| {
-        log.warn("Error saving stats! {s}", .{@errorName(err)});
-    };
-    self.save.write() catch |err| {
-        log.err("Error saving: {s}, path {s}", .{ @errorName(err), self.save.file });
-        log.err("here's your progress number: {}", .{self.save.progress});
-    };
     self.allocator.free(self.save.file);
     self.texture.deinit(self.allocator);
     self.context.deinit();

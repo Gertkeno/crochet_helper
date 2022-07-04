@@ -6,7 +6,7 @@ fn drop_loop(ctx: Context, allocator: std.mem.Allocator) ?Instance {
     while (true) {
         const filename = ctx.wait_for_file() orelse return null;
 
-        if (Instance.init(ctx, filename, allocator)) |instance| {
+        if (Instance.init(ctx, filename, allocator, .{})) |instance| {
             return instance;
         } else |err| {
             const errstr = switch (err) {
@@ -28,6 +28,7 @@ pub fn main() anyerror!void {
     const allocator = gpa.allocator();
 
     var imgFilename: ?[:0]const u8 = null;
+    var instanceSettings = Instance.Settings{};
 
     var args = std.process.args();
     _ = args.skip();
@@ -37,8 +38,15 @@ pub fn main() anyerror!void {
 
         if (arg.len != 0 and arg[0] == '-') {
             // options?
-            std.log.warn("unkown option \"{s}\"", .{arg});
-            return;
+            if (std.mem.eql(u8, "nosave", arg[1..])) {
+                instanceSettings.save_progress = false;
+                instanceSettings.time_stats = false;
+            } else if (std.mem.eql(u8, "nostats", arg[1..])) {
+                instanceSettings.time_stats = false;
+            } else {
+                std.log.warn("unkown option \"{s}\"", .{arg});
+                return;
+            }
         } else {
             if (imgFilename != null) {
                 std.log.warn("a file has already been read, ignoring \"{s}\"", .{arg});
@@ -55,7 +63,7 @@ pub fn main() anyerror!void {
     if (imgFilename) |img| {
         defer allocator.free(img);
 
-        var instance = try Instance.init(ctx, img, allocator);
+        var instance = try Instance.init(ctx, img, allocator, instanceSettings);
         defer instance.deinit();
 
         instance.main_loop();
