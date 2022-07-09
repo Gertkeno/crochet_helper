@@ -286,10 +286,10 @@ fn write_progress(self: *Instance) void {
             \\Since line: {:.>4}
             \\Since Color: {:.>3}
             \\Next Color: {:.>4}
-            \\===
+            \\===          ===
             \\Panning: WASD <^v>
             \\Zoom: Q/E
-            \\Add Stitch ..10/1: V/C
+            \\Add Stitch   10/1: V/C
             \\Remov Stitch 10/1: Z/X
             \\Toggle Help: ?
         , .{

@@ -22,6 +22,15 @@ fn drop_loop(ctx: Context, allocator: std.mem.Allocator) ?Instance {
     }
 }
 
+const help_message =
+    \\Usage: crochet_helper [OPTIONS] [FILE.(jpg|png)]
+    \\
+    \\Options:
+    \\  -nostats     do not write to crochet_stats.csv
+    \\  -nosave      do not write .filename.(jpg|png).save or crochet_stats.csv
+    \\
+;
+
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -30,6 +39,8 @@ pub fn main() anyerror!void {
     var imgFilename: ?[:0]const u8 = null;
     var instanceSettings = Instance.Settings{};
 
+    const stdout = std.io.getStdOut().writer();
+
     var args = std.process.args();
     _ = args.skip();
     while (args.next(allocator)) |argerr| {
@@ -37,12 +48,15 @@ pub fn main() anyerror!void {
         defer allocator.free(arg);
 
         if (arg.len != 0 and arg[0] == '-') {
-            // options?
             if (std.mem.eql(u8, "nosave", arg[1..])) {
                 instanceSettings.save_progress = false;
                 instanceSettings.time_stats = false;
+                std.log.warn("Not saving progress...", .{});
             } else if (std.mem.eql(u8, "nostats", arg[1..])) {
                 instanceSettings.time_stats = false;
+            } else if (arg[1] == 'h') {
+                try stdout.writeAll(help_message);
+                return;
             } else {
                 std.log.warn("unkown option \"{s}\"", .{arg});
                 return;
