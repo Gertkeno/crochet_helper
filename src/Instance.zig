@@ -274,18 +274,18 @@ fn next_color_change(self: Instance) usize {
 }
 
 fn write_progress(self: *Instance) void {
-    const lp = self.save.progress % self.texture.width;
-    const hp = self.save.progress / self.texture.width;
-    const cp = std.math.min(lp, self.last_color_change());
-    const ncp = self.next_color_change();
+    const lineProgress = self.save.progress % self.texture.width;
+    const columnsProgress = self.save.progress / self.texture.width;
+    const colorProgress = std.math.min(lineProgress, self.last_color_change());
+    const nextColorIn = self.next_color_change();
     const percent = @intToFloat(f32, self.save.progress) / @intToFloat(f32, self.max()) * 100;
     if (self.expandedView) {
         if (std.fmt.bufPrint(self.progressBuffer,
-            \\Total: {:.>6}/{:.>6} {d: >3.2}%
-            \\Lines: {d}
-            \\Since line: {:.>4}
-            \\Since Color: {:.>3}
-            \\Next Color: {:.>4}
+            \\Total: {d:.>6}/{d:.>6} {d: >3.2}%
+            \\Lines: {d:.>3}/{d}
+            \\Since line: {: >4}
+            \\Since Color: {: >3}
+            \\Next Color: {: >4}
             \\===          ===
             \\Panning: WASD <^v>
             \\Zoom: Q/E
@@ -294,17 +294,21 @@ fn write_progress(self: *Instance) void {
             \\Toggle Help: ?
         , .{
             self.save.progress, self.max(), percent, //
-            hp, //
-            lp,
-            cp,
-            ncp,
+            columnsProgress, self.texture.height, //
+            lineProgress, //
+            colorProgress,
+            nextColorIn,
         })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             log.warn("Progress counter errored with: {s}", .{@errorName(err)});
         }
     } else {
-        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.2}% L{:.>3} C{:.>3}", .{ percent, cp, ncp })) |written| {
+        if (std.fmt.bufPrint(self.progressBuffer, "{d: >3.2}% L{:.>3} C{:.>3}", .{
+            percent,
+            colorProgress,
+            nextColorIn,
+        })) |written| {
             self.progressCounter = written.len;
         } else |err| {
             log.warn("Progress counter errored with: {s}", .{@errorName(err)});
