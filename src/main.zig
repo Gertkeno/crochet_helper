@@ -43,10 +43,7 @@ pub fn main() anyerror!void {
 
     var args = std.process.args();
     _ = args.skip();
-    while (args.next(allocator)) |argerr| {
-        const arg = try argerr;
-        defer allocator.free(arg);
-
+    while (args.next()) |arg| {
         if (arg.len != 0 and arg[0] == '-') {
             if (std.mem.eql(u8, "nosave", arg[1..])) {
                 instanceSettings.save_progress = false;

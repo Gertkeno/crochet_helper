@@ -16,7 +16,6 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("crochet_helper", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.addPackagePath("date", "lib/zig-time/time.zig");
     exe.addPackage(sdl2sdk.getWrapperPackage("sdl2"));
 
     sdl2sdk.link(exe, .dynamic);

@@ -1,5 +1,4 @@
 const std = @import("std");
-const date = @import("date").DateTime;
 const Self = @This();
 
 const log = std.log.scoped(.TimeStats);
@@ -14,6 +13,30 @@ pub fn start(currentProgress: u64) Self {
         .startTime = currentTime,
         .startProgress = currentProgress,
     };
+}
+
+pub fn yyyy_mm_dd_hh(timestamp: i64, buf: []u8) ![]const u8 {
+    const es = std.time.epoch.EpochSeconds{
+        .secs = @intCast(u64, timestamp),
+    };
+    const ds = es.getDaySeconds();
+    const hours = ds.getHoursIntoDay();
+    const minutes = ds.getMinutesIntoHour();
+
+    const ey = es.getEpochDay().calculateYearDay();
+    const em = ey.calculateMonthDay();
+
+    const year = ey.year;
+    const month = em.month.numeric();
+    const day = em.day_index + 1;
+
+    return try std.fmt.bufPrint(buf, "{d:0>4}/{d:0>2}/{d:0>2} {d:0>2}:{d:0>2}", .{
+        year,
+        month,
+        day,
+        hours,
+        minutes,
+    });
 }
 
 pub fn write_append(self: Self, currentProgress: u64) !void {
@@ -44,8 +67,9 @@ pub fn write_append(self: Self, currentProgress: u64) !void {
         try file.seekTo(end);
     }
 
-    const startDate = date.initUnix(@intCast(u64, self.startTime));
+    var dateBuf: [16]u8 = undefined;
+    const date = try yyyy_mm_dd_hh(self.startTime, &dateBuf);
 
     const writer = file.writer();
-    try writer.print("{YYYY/MM/DD HH}:{d:0>2}, {d}, {d}\n", .{ startDate, startDate.minutes, duration, netprogress });
+    try writer.print("{s}, {d}, {d}\n", .{ date, duration, netprogress });
 }
