@@ -44,7 +44,7 @@ progressBuffer: []u8,
 progressCounter: usize = 0,
 popups: []Popup,
 
-const FrameRate = 24;
+const FrameRate = 60;
 const FrameTimeMS = 1000 / FrameRate;
 
 //////////
@@ -176,40 +176,54 @@ fn handle_key(self: *Instance, eventkey: sdl.Keycode, up: bool) void {
     }
 }
 
-fn handle_events(self: *Instance) void {
-    while (sdl.pollEvent()) |e| {
-        switch (e) {
-            .key_down, .key_up => |key| {
-                self.handle_key(key.keycode, e == .key_up);
-            },
-            .mouse_button_up => {
-                self.dragPoint = null;
-            },
-            .mouse_button_down => |mouse| {
-                self.dragPoint = .{
-                    .x = @intToFloat(f32, mouse.x) - self.context.offset.x,
-                    .y = @intToFloat(f32, mouse.y) - self.context.offset.y,
-                };
-            },
-            .mouse_motion => |mouse| {
-                self.mousePos.x = mouse.x;
-                self.mousePos.y = mouse.y;
-            },
-            .window => |window| {
-                switch (window.type) {
-                    .size_changed, .resized => |size| {
-                        self.windowSize = size;
-                        log.debug("resized: {}x{}", .{ size.width, size.height });
-                    },
-                    else => {},
-                }
-            },
-            .quit => {
-                self.running = false;
-            },
+fn handle_event(self: *Instance, event: sdl.Event) void {
+    switch (event) {
+        .key_down, .key_up => |key| {
+            self.handle_key(key.keycode, event == .key_up);
+        },
+        .mouse_button_up => {
+            self.dragPoint = null;
+        },
+        .mouse_button_down => |mouse| {
+            self.dragPoint = .{
+                .x = @intToFloat(f32, mouse.x) - self.context.offset.x,
+                .y = @intToFloat(f32, mouse.y) - self.context.offset.y,
+            };
+        },
+        .mouse_motion => |mouse| {
+            self.mousePos.x = mouse.x;
+            self.mousePos.y = mouse.y;
+        },
+        .window => |window| {
+            switch (window.type) {
+                .size_changed, .resized => |size| {
+                    self.windowSize = size;
+                    log.debug("resized: {}x{}", .{ size.width, size.height });
+                },
+                else => {},
+            }
+        },
+        .quit => {
+            self.running = false;
+        },
 
-            else => {},
+        else => {},
+    }
+}
+
+fn handle_events(self: *Instance) void {
+    // optimize idle, nothing changes if not scrolling
+    if (self.scrolling == 0) {
+        if (sdl.waitEvent()) |event| {
+            self.handle_event(event);
+        } else |_| {
+            log.warn("Idle opitimze failed to wait for event", .{});
         }
+    }
+
+    // the rest of the events
+    while (sdl.pollEvent()) |event| {
+        self.handle_event(event);
     }
 }
 
@@ -350,8 +364,6 @@ pub fn main_loop(self: *Instance) void {
         const frameTime = std.time.milliTimestamp() - frameStart;
         if (frameTime < FrameTimeMS) {
             sdl.delay(@intCast(u32, FrameTimeMS - frameTime));
-        } else {
-            log.debug("Frame took {d} milliseconds!", .{frameTime});
         }
     }
 }

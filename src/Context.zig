@@ -173,7 +173,7 @@ pub fn draw_all(self: Context, texture: Texture, progress: usize) void {
 ////////////////
 pub fn wait_for_file(self: Context) ?[:0]const u8 {
     while (true) {
-        while (sdl.pollEvent()) |e| {
+        if (sdl.waitEvent()) |e| {
             switch (e) {
                 .drop_file => |file| {
                     return std.mem.span(file.file);
@@ -191,15 +191,14 @@ pub fn wait_for_file(self: Context) ?[:0]const u8 {
                 },
                 else => {},
             }
+        } else |_| {
+            return null;
         }
 
         self.clear();
         self.print_slice("Please drag a image onto this window to open it", 20, 80);
         self.swap();
-        sdl.delay(33);
     }
-
-    return null;
 }
 
 pub fn error_box(self: Context, msg: [:0]const u8) void {
